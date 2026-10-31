@@ -2,14 +2,15 @@ spring:
   application:
     name: graduation-project-backend
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/graduation_project?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
-    username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:}
+    url: ${DB_URL:jdbc:mysql://localhost:3306/lvyin_sport?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${DB_USERNAME:lcr}
+    password: ${DB_PASSWORD:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
-
+  sql:
+    init:
+      mode: never
 server:
   port: ${SERVER_PORT:8080}
-
-logging:
-  level:
-    com.licr.graduation: info
+jwt:
+  secret: ${JWT_SECRET:lvyin-sport-jwt-secret-key-2026-please-change}
+  expire-hours: ${JWT_EXPIRE_HOURS:24}
