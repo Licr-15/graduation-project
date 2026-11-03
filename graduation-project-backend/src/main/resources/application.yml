@@ -9,6 +9,12 @@ spring:
   sql:
     init:
       mode: never
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      id-type: auto
 server:
   port: ${SERVER_PORT:8080}
 jwt:

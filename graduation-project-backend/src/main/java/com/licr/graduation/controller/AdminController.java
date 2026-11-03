@@ -1,4 +1,4 @@
-package com.licr.graduation.web;
+package com.licr.graduation.controller;
 import com.licr.graduation.common.Result;import com.licr.graduation.dto.ActivityDtos;import com.licr.graduation.security.CurrentUser;import com.licr.graduation.service.NoticeService;import com.licr.graduation.service.VenueService;import jakarta.servlet.http.HttpServletRequest;import jakarta.validation.Valid;import org.springframework.web.bind.annotation.*;
 @RestController @RequestMapping("/api/admin") public class AdminController {private final VenueService venues;private final NoticeService notices;public AdminController(VenueService venues,NoticeService notices){this.venues=venues;this.notices=notices;}
  @PostMapping("/venues") public Result<?> createVenue(@Valid @RequestBody ActivityDtos.Venue i){return Result.ok(venues.create(i));}

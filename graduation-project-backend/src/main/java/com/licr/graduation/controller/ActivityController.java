@@ -1,4 +1,4 @@
-package com.licr.graduation.web;
+package com.licr.graduation.controller;
 import com.licr.graduation.common.Result;import com.licr.graduation.dto.ActivityDtos;import com.licr.graduation.service.ActivityService;import jakarta.servlet.http.HttpServletRequest;import jakarta.validation.Valid;import org.springframework.web.bind.annotation.*;
 @RestController @RequestMapping("/api/activities") public class ActivityController {private final ActivityService service;public ActivityController(ActivityService service){this.service=service;}
  @GetMapping public Result<?> search(@RequestParam(required=false)String keyword,@RequestParam(required=false)String sportType,@RequestParam(defaultValue="1")int page,@RequestParam(defaultValue="10")int size){return Result.ok(service.search(keyword,sportType,page,size));}
