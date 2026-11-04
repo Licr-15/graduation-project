@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from './stores/auth.js'
 import { api } from './api.js'
 import { dateTime, isPast, isoLocal, localInput, sportImage, sports } from './format.js'
-import { Activity, ArrowLeft, CalendarDays, Check, ChevronRight, Clock3, Compass, LogOut, MapPin, Megaphone, Menu, MessageCircle, Pencil, Plus, Search, ShieldCheck, Trash2, UserRound, Users, X } from 'lucide-vue-next'
+import { Activity, ArrowLeft, CalendarDays, Check, ChevronRight, Clock3, Compass, LogOut, MapPin, Megaphone, Menu, MessageCircle, Pencil, Plus, Search, ShieldCheck, Shuffle, Trash2, UserRound, Users, X } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -31,6 +31,8 @@ const noticeOpen = ref(false)
 const mineTab = ref('created')
 const filter = reactive({ keyword: '', sportType: '全部', page: 1, size: 9 })
 const hasMore = ref(false)
+const picking = ref(false)
+const lastPickedId = ref(null)
 const authForm = reactive({ username: '', password: '', nickname: '' })
 const profileForm = reactive({ nickname: '', phone: '', avatar: '' })
 const activityForm = reactive({ id: null, title: '', sportType: '羽毛球', venueId: '', description: '', startTime: '', endTime: '', maxPeople: 4 })
@@ -46,6 +48,31 @@ function message(text) { toast.value = text; clearTimeout(toastTimer); toastTime
 function fail(err) { error.value = err.message || '操作失败'; message(error.value) }
 function requireLogin() { if (!auth.token) { authMode.value = 'login'; authOpen.value = true; return false } return true }
 function clearError() { error.value = '' }
+function activityStatus(item) {
+  if (isPast(item.startTime)) return '已开始'
+  return item.joinedCount >= item.maxPeople ? '已满员' : '正在招募'
+}
+async function pickActivity() {
+  if (picking.value) return
+  picking.value = true
+  try {
+    const rows = await api.get('/activities', {
+      keyword: filter.keyword.trim() || undefined,
+      sportType: filter.sportType === '全部' ? undefined : filter.sportType,
+      page: 1,
+      size: 100
+    })
+    const available = (rows || []).filter(item => item.status === 'OPEN'
+      && !isPast(item.startTime)
+      && item.joinedCount < item.maxPeople
+      && item.publisherId !== auth.user?.id)
+    if (!available.length) return message('暂时没有可加入的活动，换个分类看看')
+    const choices = available.length > 1 ? available.filter(item => item.id !== lastPickedId.value) : available
+    const selected = choices[Math.floor(Math.random() * choices.length)]
+    lastPickedId.value = selected.id
+    await router.push(`/activities/${selected.id}`)
+  } catch (err) { fail(err) } finally { picking.value = false }
+}
 async function loadActivities() {
   loading.value = true; clearError()
   try {
@@ -183,11 +210,11 @@ onUnmounted(() => { window.removeEventListener('lvyin-unauthorized', unauthorize
       <main class="content">
         <template v-if="page === 'activities'">
           <div class="page-head"><div><p class="eyebrow">SPORTS TOGETHER</p><h1>发现运动搭子</h1><p>找一场合适的运动，和同学一起出发。</p></div><button class="primary-button" @click="openActivity()"><Plus :size="17" />发布活动</button></div>
-          <div class="feature-strip"><div><span class="strip-kicker">绿茵结伴 · 校园运动社区</span><h2>下一场运动，一起去</h2><p>球场、跑道与操场，总有人和你时间相合。</p></div></div>
+          <div class="feature-strip"><div><span class="strip-kicker">绿茵结伴 · 校园运动社区</span><h2>下一场运动，一起去</h2><p>球场、跑道与操场，总有人和你时间相合。</p></div><button class="surprise-button" :disabled="picking" @click="pickActivity"><Shuffle :size="17" />{{ picking ? '寻找中…' : '随机挑一场' }}</button></div>
           <div class="toolbar"><div class="sport-tabs"><button v-for="sport in sports" :key="sport" :class="{ selected: filter.sportType === sport }" @click="setSport(sport)">{{ sport }}</button></div><form class="search-box" @submit.prevent="searchActivities"><Search :size="17" /><input v-model="filter.keyword" placeholder="搜索活动或地点" aria-label="搜索活动或地点"><button title="搜索" type="submit"><ChevronRight :size="18" /></button></form></div>
           <div class="section-heading"><h2>近期活动</h2><span>按开始时间排序</span></div>
           <div v-if="loading" class="state-panel">正在加载活动…</div><div v-else-if="error" class="state-panel"><p>{{ error }}</p><button class="text-button" @click="loadActivities">重试</button></div><div v-else-if="!activities.length" class="state-panel"><Activity :size="30" /><h3>暂无符合条件的活动</h3><p>试试其他运动类型，或发布一场新的结伴活动。</p><button class="primary-button" @click="openActivity()"><Plus :size="16" />发布活动</button></div>
-          <div v-else class="activity-grid"><article v-for="item in activities" :key="item.id" class="activity-card" @click="router.push(`/activities/${item.id}`)"><div class="card-image" :style="{ backgroundImage: `url(${sportImage(item.sportType)})` }"><span class="status-label">{{ isPast(item.startTime) ? '已开始' : '正在招募' }}</span><span class="sport-label">{{ item.sportType }}</span></div><div class="card-content"><h3>{{ item.title }}</h3><p><Clock3 :size="15" />{{ dateTime(item.startTime) }} - {{ dateTime(item.endTime).split(' ').pop() }}</p><p><MapPin :size="15" />{{ item.venueName || '地点由发起人告知' }}</p><div class="card-footer"><span class="host-initial">{{ item.publisherName?.slice(0, 1) }}</span><span class="host-name">{{ item.publisherName }}</span><span class="spacer"></span><span>{{ item.joinedCount }} / {{ item.maxPeople }} 人</span><ChevronRight :size="16" /></div></div></article></div>
+          <div v-else class="activity-grid"><article v-for="item in activities" :key="item.id" class="activity-card" @click="router.push(`/activities/${item.id}`)"><div class="card-image" :style="{ backgroundImage: `url(${sportImage(item.sportType)})` }"><span class="status-label" :class="{ full: activityStatus(item) === '已满员', past: activityStatus(item) === '已开始' }">{{ activityStatus(item) }}</span><span class="sport-label">{{ item.sportType }}</span></div><div class="card-content"><h3>{{ item.title }}</h3><p><Clock3 :size="15" />{{ dateTime(item.startTime) }} - {{ dateTime(item.endTime).split(' ').pop() }}</p><p><MapPin :size="15" />{{ item.venueName || '地点由发起人告知' }}</p><div class="card-footer"><span class="host-initial">{{ item.publisherName?.slice(0, 1) }}</span><span class="host-name">{{ item.publisherName }}</span><span class="spacer"></span><span>{{ item.joinedCount }} / {{ item.maxPeople }} 人</span><ChevronRight :size="16" /></div></div></article></div>
           <div v-if="activities.length" class="pagination"><button class="outline-button" :disabled="filter.page === 1" @click="filter.page--; loadActivities()">上一页</button><span>第 {{ filter.page }} 页</span><button class="outline-button" :disabled="!hasMore" @click="filter.page++; loadActivities()">下一页</button></div>
         </template>
         <template v-else-if="page === 'detail'"><button class="back-link" @click="router.push('/activities')"><ArrowLeft :size="17" />返回活动列表</button><div v-if="loading" class="state-panel">正在加载活动…</div><div v-else-if="error" class="state-panel"><h3>{{ error }}</h3><button class="text-button" @click="loadDetail">重试</button></div><div v-else-if="detail" class="detail-layout"><div class="detail-main"><div class="detail-cover" :style="{ backgroundImage: `url(${sportImage(detail.sportType)})` }"></div><div class="detail-title-row"><div><div class="detail-tags"><span>{{ detail.sportType }}</span><span :class="{ dim: detail.status !== 'OPEN' }">{{ detail.status === 'OPEN' ? '正在招募' : '已取消' }}</span></div><h1>{{ detail.title }}</h1><p>由 {{ detail.publisherName }} 发布</p></div><div v-if="auth.user?.id === detail.publisherId && detail.status === 'OPEN'" class="detail-actions"><button class="outline-button" @click="openActivity(detail)"><Pencil :size="15" />编辑</button><button class="outline-button danger-text" @click="cancelActivity(detail)"><Trash2 :size="15" />取消活动</button></div></div><section class="plain-section"><h2>活动介绍</h2><p class="description">{{ detail.description || '发起人暂未填写活动介绍。' }}</p></section><section class="plain-section"><div class="section-heading"><h2>活动讨论</h2><span>{{ comments.length }} 条评论</span></div><div v-if="comments.length" class="comment-list"><div v-for="comment in comments" :key="comment.id" class="comment"><div class="comment-avatar">{{ comment.nickname?.slice(0, 1) }}</div><div><div class="comment-top"><strong>{{ comment.nickname }}</strong><span>{{ dateTime(comment.createdAt) }}</span><button v-if="auth.user?.id === comment.userId" title="删除评论" @click="deleteComment(comment)"><Trash2 :size="15" /></button></div><p>{{ comment.content }}</p></div></div></div><p v-else class="empty-inline">还没有评论。</p><form class="comment-form" @submit.prevent="submitComment"><textarea v-model="commentText" maxlength="500" placeholder="说说你的想法…" aria-label="评论内容" required></textarea><button class="primary-button" :disabled="saving || !commentText.trim()"><MessageCircle :size="16" />发布评论</button></form></section></div><aside class="detail-side"><h2>活动信息</h2><div class="info-line"><span><CalendarDays :size="16" />活动时间</span><strong>{{ dateTime(detail.startTime) }} - {{ dateTime(detail.endTime).split(' ').pop() }}</strong></div><div class="info-line"><span><MapPin :size="16" />集合地点</span><strong>{{ detail.venueName || '地点由发起人告知' }}</strong></div><div class="info-line"><span><UserRound :size="16" />发起人</span><strong>{{ detail.publisherName }}</strong></div><div class="info-line"><span><Users :size="16" />报名人数</span><strong>{{ detail.joinedCount }} / {{ detail.maxPeople }} 人</strong><div class="capacity"><i :style="{ width: `${Math.min(100, detail.joinedCount / detail.maxPeople * 100)}%` }"></i></div><small>剩余 {{ Math.max(0, detail.maxPeople - detail.joinedCount) }} 个名额</small></div><button v-if="detail.status === 'OPEN' && !isPast(detail.startTime) && auth.user?.id !== detail.publisherId" class="primary-button wide" :class="{ secondary: joinedIds.has(detail.id) }" :disabled="saving || (!joinedIds.has(detail.id) && detail.joinedCount >= detail.maxPeople)" @click="toggleJoin(detail)"><Check v-if="joinedIds.has(detail.id)" :size="17" /><Plus v-else :size="17" />{{ joinedIds.has(detail.id) ? '取消报名' : detail.joinedCount >= detail.maxPeople ? '人数已满' : '加入这场运动' }}</button><p v-else class="side-note">{{ auth.user?.id === detail.publisherId ? '这是你发布的活动' : detail.status !== 'OPEN' ? '活动已取消' : '活动已开始' }}</p></aside></div></template>

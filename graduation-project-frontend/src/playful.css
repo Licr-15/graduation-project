@@ -1,0 +1,12 @@
+.feature-strip { height: auto; min-height: 164px; justify-content: space-between; gap: 24px; }
+.feature-strip > div { min-width: 0; }
+.surprise-button { display: inline-flex; align-items: center; justify-content: center; gap: 9px; flex: none; min-height: 44px; padding: 10px 16px; color: #19482f; background: #fff; border: 1px solid #fff; border-radius: 5px; font-weight: 700; white-space: nowrap; box-shadow: 0 4px 18px #071e1829; transition: transform .18s, box-shadow .18s; }
+.surprise-button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 7px 20px #071e1840; }
+.surprise-button:focus-visible { outline: 3px solid #ade47e; outline-offset: 3px; }
+.status-label.full { color: #a14f26; background: #fff0e5; }
+.status-label.past { color: #5c6a61; background: #edf1ee; }
+@media (max-width: 760px) {
+  .feature-strip { min-height: 142px; flex-wrap: wrap; align-content: center; gap: 14px; }
+  .feature-strip h2 { margin: 5px 0; }
+  .surprise-button { min-height: 38px; padding: 8px 12px; font-size: 12px; }
+}
