@@ -28,7 +28,8 @@ public class JwtInterceptor implements HandlerInterceptor {
         if (("POST".equals(method) && ("/api/auth/register".equals(path) || "/api/auth/login".equals(path)))
                 || ("GET".equals(method) && ("/api/system/health".equals(path)
                 || "/api/venues".equals(path) || "/api/activities".equals(path)
-                || "/api/notices".equals(path) || path.matches("/api/comments/activity/\\d+")))) return true;
+                || "/api/notices".equals(path) || path.matches("/api/comments/activity/\\d+")
+                || path.matches("/api/activities/\\d+")))) return true;
         return false;
     }
     private void write(HttpServletResponse response, String message) throws Exception {

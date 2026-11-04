@@ -8,6 +8,8 @@ import java.util.List;
 public interface ActivityService {
     List<Views.Activity> search(String keyword,String sportType,int page,int size);
     List<Views.Activity> mine(CurrentUser user);
+    List<Views.Activity> joined(CurrentUser user);
+    Views.Activity detail(Long id);
     Long create(CurrentUser user,ActivityDtos.Save input);
     void update(CurrentUser user,Long id,ActivityDtos.Save input);
     void delete(CurrentUser user,Long id);

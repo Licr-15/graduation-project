@@ -8,4 +8,6 @@ import com.licr.graduation.common.Result;import com.licr.graduation.dto.Activity
  @PostMapping("/{id}/join") public Result<?> join(HttpServletRequest r,@PathVariable Long id){service.join(AuthController.user(r),id);return Result.ok(null);}
  @DeleteMapping("/{id}/join") public Result<?> leave(HttpServletRequest r,@PathVariable Long id){service.leave(AuthController.user(r),id);return Result.ok(null);}
  @GetMapping("/mine") public Result<?> mine(HttpServletRequest r){return Result.ok(service.mine(AuthController.user(r)));}
+ @GetMapping("/mine/joined") public Result<?> joined(HttpServletRequest r){return Result.ok(service.joined(AuthController.user(r)));}
+ @GetMapping("/{id}") public Result<?> detail(@PathVariable Long id){return Result.ok(service.detail(id));}
 }
