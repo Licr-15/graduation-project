@@ -10,6 +10,7 @@ Spring Boot + Vue 3 毕业设计项目。
 - `graduation-project-frontend`：Vue 3 + Vite 前端
 - `design-preview`：前端设计预览及截图
 - `毕设操作详细日志.md`：项目操作记录
+- `毕设系统自测操作手册.md`：本机启动、网页操作与 Navicat 对照步骤
 
 ## 后端启动
 
