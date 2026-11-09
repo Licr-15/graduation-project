@@ -17,6 +17,9 @@ mybatis-plus:
       id-type: auto
 server:
   port: ${SERVER_PORT:8080}
+  tomcat:
+    max-http-form-post-size: 6MB
+    max-swallow-size: 6MB
 jwt:
   secret: ${JWT_SECRET:lvyin-sport-jwt-secret-key-2026-please-change}
   expire-hours: ${JWT_EXPIRE_HOURS:24}

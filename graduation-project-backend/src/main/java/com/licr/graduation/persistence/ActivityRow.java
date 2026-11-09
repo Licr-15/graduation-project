@@ -13,6 +13,7 @@ public class ActivityRow {
     public String title;
     public String sportType;
     public String description;
+    public String imageUrl;
     public LocalDateTime startTime;
     public LocalDateTime endTime;
     public Integer maxPeople;

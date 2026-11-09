@@ -10,6 +10,17 @@ import org.apache.ibatis.annotations.Select;
 
 @Mapper
 public interface ActivityMapper extends BaseMapper<ActivityRow> {
+    @Select("""
+        SELECT a.id, a.publisher_id AS publisherId, u.nickname AS publisherName,
+               a.venue_id AS venueId, v.name AS venueName, a.title, a.sport_type AS sportType,
+               a.description, a.image_url AS imageUrl, a.start_time AS startTime, a.end_time AS endTime,
+               a.max_people AS maxPeople,
+               (SELECT COUNT(*) FROM activity_sign s WHERE s.activity_id=a.id AND s.status='JOINED') AS joinedCount,
+               a.status, a.created_at AS createdAt
+        FROM activity a JOIN `user` u ON u.id=a.publisher_id LEFT JOIN sport_venue v ON v.id=a.venue_id
+        ORDER BY a.created_at DESC
+        """)
+    List<Views.Activity> all();
     @Select("SELECT id FROM activity WHERE id=#{id} FOR UPDATE")
     Long lock(@Param("id") Long id);
 
@@ -17,7 +28,7 @@ public interface ActivityMapper extends BaseMapper<ActivityRow> {
         <script>
         SELECT a.id, a.publisher_id AS publisherId, u.nickname AS publisherName,
                a.venue_id AS venueId, v.name AS venueName, a.title,
-               a.sport_type AS sportType, a.description, a.start_time AS startTime,
+               a.sport_type AS sportType, a.description, a.image_url AS imageUrl, a.start_time AS startTime,
                a.end_time AS endTime, a.max_people AS maxPeople,
                (SELECT COUNT(*) FROM activity_sign s WHERE s.activity_id=a.id AND s.status='JOINED') AS joinedCount,
                a.status, a.created_at AS createdAt
@@ -36,7 +47,7 @@ public interface ActivityMapper extends BaseMapper<ActivityRow> {
     @Select("""
         SELECT a.id, a.publisher_id AS publisherId, u.nickname AS publisherName,
                a.venue_id AS venueId, v.name AS venueName, a.title,
-               a.sport_type AS sportType, a.description, a.start_time AS startTime,
+               a.sport_type AS sportType, a.description, a.image_url AS imageUrl, a.start_time AS startTime,
                a.end_time AS endTime, a.max_people AS maxPeople,
                (SELECT COUNT(*) FROM activity_sign s WHERE s.activity_id=a.id AND s.status='JOINED') AS joinedCount,
                a.status, a.created_at AS createdAt
@@ -49,7 +60,7 @@ public interface ActivityMapper extends BaseMapper<ActivityRow> {
     @Select("""
         SELECT a.id, a.publisher_id AS publisherId, u.nickname AS publisherName,
                a.venue_id AS venueId, v.name AS venueName, a.title,
-               a.sport_type AS sportType, a.description, a.start_time AS startTime,
+               a.sport_type AS sportType, a.description, a.image_url AS imageUrl, a.start_time AS startTime,
                a.end_time AS endTime, a.max_people AS maxPeople,
                (SELECT COUNT(*) FROM activity_sign s WHERE s.activity_id=a.id AND s.status='JOINED') AS joinedCount,
                a.status, a.created_at AS createdAt
@@ -61,7 +72,7 @@ public interface ActivityMapper extends BaseMapper<ActivityRow> {
     @Select("""
         SELECT a.id, a.publisher_id AS publisherId, u.nickname AS publisherName,
                a.venue_id AS venueId, v.name AS venueName, a.title,
-               a.sport_type AS sportType, a.description, a.start_time AS startTime,
+               a.sport_type AS sportType, a.description, a.image_url AS imageUrl, a.start_time AS startTime,
                a.end_time AS endTime, a.max_people AS maxPeople,
                (SELECT COUNT(*) FROM activity_sign x WHERE x.activity_id=a.id AND x.status='JOINED') AS joinedCount,
                a.status, a.created_at AS createdAt
