@@ -1,3 +1,4 @@
 design-preview/chrome-profile*/
 # Local Git authentication helper
 .git-askpass.ps1
+.git-askpass.cmd

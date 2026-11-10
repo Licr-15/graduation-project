@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useAuthStore } from "./stores/auth.js";
 import { api } from "./api.js";
+import ExperiencePage from "./ExperiencePage.vue";
 import {
   dateTime,
   isPast,
@@ -100,6 +101,10 @@ const title = computed(
       mine: "我的活动",
       venues: "运动场地",
       notices: "校园公告",
+      competitions: "校园赛事",
+      community: "运动社区",
+      points: "我的积分",
+      "admin-users": "角色管理",
       profile: "个人资料",
       "admin-activities": "活动管理",
       "admin-venues": "场地管理",
@@ -607,6 +612,9 @@ onUnmounted(() => {
         :class="{ current: page === 'notices' }"
         ><Megaphone :size="18" />校园公告</RouterLink
       >
+      <RouterLink to="/competitions" class="side-link" :class="{ current: page === 'competitions' }"><Activity :size="18" />校园赛事</RouterLink>
+      <RouterLink to="/community" class="side-link" :class="{ current: page === 'community' }"><MessageCircle :size="18" />运动社区</RouterLink>
+      <RouterLink to="/points" class="side-link" :class="{ current: page === 'points' }"><Check :size="18" />我的积分</RouterLink>
       <div v-if="isAdmin" class="side-label section-gap">管理员</div>
       <RouterLink
         v-if="isAdmin"
@@ -629,6 +637,7 @@ onUnmounted(() => {
         :class="{ current: page === 'admin-notices' }"
         ><Megaphone :size="18" />公告管理</RouterLink
       >
+      <RouterLink v-if="isAdmin" to="/admin/users" class="side-link" :class="{ current: page === 'admin-users' }"><Users :size="18" />角色管理</RouterLink>
       <div class="side-bottom">
         <span class="side-dot"></span> 和同学一起，动起来
       </div>
@@ -664,7 +673,8 @@ onUnmounted(() => {
         </div>
       </header>
       <main class="content">
-        <template v-if="page === 'activities'">
+        <ExperiencePage v-if="['competitions', 'community', 'points', 'admin-users'].includes(page)" :key="page" :page="page" :user="auth.user" :token="auth.token" @login="authOpen = true" />
+        <template v-else-if="page === 'activities'">
           <div class="page-head">
             <div>
               <p class="eyebrow">SPORTS TOGETHER</p>

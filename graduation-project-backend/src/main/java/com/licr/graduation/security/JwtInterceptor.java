@@ -28,6 +28,8 @@ public class JwtInterceptor implements HandlerInterceptor {
         if (("POST".equals(method) && ("/api/auth/register".equals(path) || "/api/auth/login".equals(path)))
                 || ("GET".equals(method) && ("/api/system/health".equals(path)
                 || "/api/venues".equals(path) || "/api/activities".equals(path)
+                || "/api/competitions".equals(path) || "/api/community/posts".equals(path)
+                || path.matches("/api/community/posts/\\d+/replies")
                 || "/api/notices".equals(path) || path.matches("/api/comments/activity/\\d+")
                 || path.matches("/api/activities/\\d+")))) return true;
         return false;
