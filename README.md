@@ -27,6 +27,8 @@ Spring Boot + Vue 3 毕业设计项目。
 
 前端包含活动发现与搜索、活动详情、发布/编辑/取消、报名/取消报名、评论、我的活动、场地、公告、个人资料，以及管理员场地、活动、公告管理。活动支持系统图片、图片地址和本地图片作为封面。
 
+赛事与社区功能：系统管理员在“角色管理”中授予赛事管理员角色；赛事管理员管理自己创建的赛事，系统管理员可管理所有赛事。学生报名赛事，并在赛事时间内上传照片打卡，积分进入排行榜。赛事管理员可以审核报名和录入名次/成绩。运动社区支持动态、话题、照片、回复、点赞、收藏和举报；系统管理员可处理举报。积分页面展示个人统计、勋章和按运动偏好推荐的活动。
+
 新增赛事与社区：系统管理员在“角色管理”中将普通用户设为赛事管理员；赛事管理员登录后可发布、编辑及取消自己创建的赛事。学生报名赛事，赛事进行时上传现场照片打卡，每场只能打卡一次，积分进入“我的积分”。“运动社区”支持动态和论坛话题发帖、上传照片、回复及本人删除；系统管理员可删除帖子和回复。赛事时间未到时不可提前打卡。
 
 活动页增加“随机挑一场”：按当前运动分类和搜索词，从未开始且仍有名额的活动中随机进入一场；活动卡片会区分招募中、已满员和已开始。
@@ -60,6 +62,13 @@ Spring Boot + Vue 3 毕业设计项目。
 - `POST/PUT/DELETE /api/admin/venues...` 管理场地
 - `GET /api/notices` 查看公告
 - `POST /api/admin/notices` 发布公告
+- `GET /api/points/leaderboard` 积分排行榜
+- `GET /api/stats/mine` 个人运动统计
+- `GET /api/recommendations` 运动偏好活动推荐
+- `GET /api/competitions/{id}/participants`、报名审核及成绩管理接口
+- `POST /api/community/posts/{id}/like`、`favorite`、`report` 社区互动接口
+
+升级现有数据库时，依次运行尚未执行的迁移脚本 `05_activity_image.sql`、`06_competitions_community_points.sql` 和 `08_rank_stats_interaction.sql`。赛事与社区演示数据可运行 `07_demo_experience.sql` 导入。
 - `GET/POST/PUT/DELETE /api/competitions...` 浏览与管理赛事
 - `POST/DELETE /api/competitions/{id}/enroll` 报名与取消报名
 - `POST /api/competitions/{id}/checkin` 上传照片打卡并累计积分
