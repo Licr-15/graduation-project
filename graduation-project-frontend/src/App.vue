@@ -133,6 +133,15 @@ function requireLogin() {
 function clearError() {
   error.value = "";
 }
+function onAvatarFile(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return message('请选择 JPG、PNG 或 WebP 图片');
+  if (file.size > 2 * 1024 * 1024) return message('头像图片不能超过 2MB');
+  const reader = new FileReader();
+  reader.onload = () => { profileForm.avatar = String(reader.result); };
+  reader.readAsDataURL(file);
+}
 const imageChoice = ref("default");
 function setImageChoice(value) {
   imageChoice.value = value;
@@ -479,7 +488,7 @@ async function saveProfile() {
     auth.user = await api.put("/auth/profile", {
       nickname: profileForm.nickname.trim(),
       phone: profileForm.phone.trim() || null,
-      avatar: profileForm.avatar.trim() || null,
+      avatar: profileForm.avatar || null,
     });
     localStorage.setItem("lvyin_user", JSON.stringify(auth.user));
     message("资料已保存");
@@ -663,9 +672,10 @@ onUnmounted(() => {
             class="user-button"
             @click="router.push('/profile')"
           >
-            <span class="user-avatar">{{
-              auth.user?.nickname?.slice(0, 1) || "同"
-            }}</span
+            <span class="user-avatar">
+              <img v-if="auth.user?.avatar" :src="auth.user.avatar" alt="用户头像" />
+              <span v-else>{{ auth.user?.nickname?.slice(0, 1) || "同" }}</span>
+            </span
             ><span>{{ auth.user?.nickname || "同学" }}</span></button
           ><button v-else class="outline-button" @click="authOpen = true">
             登录 / 注册
@@ -1196,11 +1206,13 @@ onUnmounted(() => {
           <div class="profile-layout">
             <div class="profile-summary">
               <div class="profile-avatar">
-                {{ auth.user?.nickname?.slice(0, 1) || "同" }}
+                <img v-if="auth.user?.avatar" :src="auth.user.avatar" alt="用户头像" />
+                <span v-else>{{ auth.user?.nickname?.slice(0, 1) || "同" }}</span>
               </div>
-              <h2>{{ auth.user?.nickname }}</h2>
-              <p>@{{ auth.user?.username }}</p>
-              <span class="small-tag">{{ isAdmin ? "管理员" : "学生" }}</span>
+              <h2 class="profile-nickname">{{ auth.user?.nickname }}</h2>
+              <div class="profile-account"><span>账号 ID</span><strong>{{ auth.user?.id }}</strong></div>
+              <div class="profile-username">@{{ auth.user?.username }}</div>
+              <span class="small-tag profile-role">{{ { ADMIN: "系统管理员", EVENT_MANAGER: "赛事管理员", STUDENT: "普通用户" }[auth.user?.role] || "用户" }}</span>
             </div>
             <form class="profile-form" @submit.prevent="saveProfile">
               <h2>基本资料</h2>
@@ -1216,12 +1228,17 @@ onUnmounted(() => {
                   v-model="profileForm.phone"
                   maxlength="20"
                   placeholder="可选" /></label
-              ><label
-                >头像地址<input
-                  v-model="profileForm.avatar"
-                  maxlength="255"
-                  placeholder="可选"
-              /></label>
+              ><label>头像
+                <div class="avatar-picker">
+                  <div class="avatar-preview">
+                    <img v-if="profileForm.avatar" :src="profileForm.avatar" alt="头像预览" />
+                    <span v-else>{{ profileForm.nickname?.slice(0, 1) || "同" }}</span>
+                  </div>
+                  <label class="file-button">选择本地图片<input type="file" accept="image/jpeg,image/png,image/webp" @change="onAvatarFile" /></label>
+                  <button v-if="profileForm.avatar" type="button" class="text-button" @click="profileForm.avatar = ''">移除头像</button>
+                </div>
+                <small class="field-hint">支持 JPG、PNG、WebP，最大 2MB</small>
+              </label>
               <div class="profile-footer">
                 <button class="primary-button" :disabled="saving">
                   <Check :size="17" />保存资料</button
