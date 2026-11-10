@@ -32,6 +32,8 @@ public class ExperienceController {
     public record PostInput(@NotBlank @Size(max=1000) String content, @Pattern(regexp="DYNAMIC|TOPIC") String postType, String imageUrl) {}
     public record ReplyInput(@NotBlank @Size(max=500) String content) {}
     public record RoleInput(@Pattern(regexp="STUDENT|EVENT_MANAGER") String role) {}
+    public record ResultInput(@Min(1) @Max(9999) int rank, @DecimalMin("0") @DecimalMax("10000") double score) {}
+    public record ReportInput(@NotBlank @Size(max=255) String reason) {}
 
     private CurrentUser user(HttpServletRequest request) { return AuthController.user(request); }
     private void manager(CurrentUser user) {
@@ -65,7 +67,7 @@ public class ExperienceController {
         return Result.ok(db.queryForList("""
             SELECT c.id,c.title,c.sport_type AS sportType,c.description,c.start_time AS startTime,
               c.end_time AS endTime,c.points_reward AS pointsReward,c.status,c.manager_id AS managerId,
-              u.nickname AS managerName,(SELECT COUNT(*) FROM competition_sign s WHERE s.competition_id=c.id AND s.status IN ('ENROLLED','CHECKED')) AS enrolledCount
+              u.nickname AS managerName,(SELECT COUNT(*) FROM competition_sign s WHERE s.competition_id=c.id AND s.status IN ('ENROLLED','CHECKED') AND s.approval_status<>'REJECTED') AS enrolledCount
             FROM sport_competition c JOIN `user` u ON u.id=c.manager_id ORDER BY c.start_time DESC
             """));
     }
@@ -94,7 +96,7 @@ public class ExperienceController {
         List<Map<String,Object>> rows=db.queryForList("SELECT status,start_time FROM sport_competition WHERE id=?",id);
         if (rows.isEmpty() || !"OPEN".equals(rows.get(0).get("status"))) throw new BusinessException("赛事不可报名");
         if (!time(rows.get(0).get("start_time")).isAfter(LocalDateTime.now())) throw new BusinessException("赛事已开始");
-        try { db.update("INSERT INTO competition_sign(competition_id,user_id) VALUES(?,?) ON DUPLICATE KEY UPDATE status=IF(status='CANCELLED','ENROLLED',status)",id,u.id()); }
+        try { db.update("INSERT INTO competition_sign(competition_id,user_id,approval_status) VALUES(?,?,'PENDING') ON DUPLICATE KEY UPDATE status=IF(status='CANCELLED','ENROLLED',status),approval_status=IF(status='CANCELLED','PENDING',approval_status)",id,u.id()); }
         catch (DuplicateKeyException e) { throw new BusinessException("已经报名"); }
         return Result.ok(null);
     }
@@ -115,7 +117,7 @@ public class ExperienceController {
         LocalDateTime start=time(rows.get(0).get("start_time"));
         LocalDateTime end=time(rows.get(0).get("end_time"));
         if(now.isBefore(start) || now.isAfter(end)) throw new BusinessException("请在赛事期间打卡");
-        if(db.update("UPDATE competition_sign SET status='CHECKED',proof_image=?,checked_at=NOW() WHERE competition_id=? AND user_id=? AND status='ENROLLED'",
+        if(db.update("UPDATE competition_sign SET status='CHECKED',proof_image=?,checked_at=NOW() WHERE competition_id=? AND user_id=? AND status='ENROLLED' AND approval_status<>'REJECTED'",
             proof.imageUrl(),id,u.id())==0) throw new BusinessException("请先报名，且每场赛事只能打卡一次");
         db.update("INSERT INTO point_ledger(user_id,points,reason,source_type,source_id) VALUES(?,?,'赛事照片打卡','COMPETITION',?)",
             u.id(),rows.get(0).get("points_reward"),id);
@@ -126,12 +128,53 @@ public class ExperienceController {
         long id=user(request).id();
         return Result.ok(Map.of("total",db.queryForObject("SELECT COALESCE(SUM(points),0) FROM point_ledger WHERE user_id=?",Integer.class,id),
             "records",db.queryForList("SELECT id,points,reason,created_at AS createdAt FROM point_ledger WHERE user_id=? ORDER BY created_at DESC",id),
-            "enrollments",db.queryForList("SELECT competition_id AS competitionId,status,proof_image IS NOT NULL AS checked FROM competition_sign WHERE user_id=?",id)));
+            "enrollments",db.queryForList("SELECT competition_id AS competitionId,status,approval_status AS approvalStatus,proof_image IS NOT NULL AS checked FROM competition_sign WHERE user_id=?",id),
+            "badges",badges(id)));
     }
+    private List<Map<String,Object>> badges(long userId) {
+        Integer checked=db.queryForObject("SELECT COUNT(*) FROM competition_sign WHERE user_id=? AND status='CHECKED'",Integer.class,userId);
+        Integer joined=db.queryForObject("SELECT COUNT(*) FROM activity_sign WHERE user_id=? AND status='JOINED'",Integer.class,userId);
+        List<Map<String,Object>> result=new java.util.ArrayList<>();
+        if(checked!=null && checked>=1) result.add(Map.of("name","首次打卡","icon","📸","description","完成第一次赛事照片打卡"));
+        if(checked!=null && checked>=3) result.add(Map.of("name","打卡达人","icon","🏅","description","完成 3 次赛事照片打卡"));
+        if(joined!=null && joined>=5) result.add(Map.of("name","运动积极分子","icon","🏃","description","参加 5 场结伴活动"));
+        return result;
+    }
+    @GetMapping("/points/leaderboard")
+    public Result<?> leaderboard() { return Result.ok(db.queryForList("SELECT u.id,u.nickname,COALESCE(SUM(p.points),0) AS totalPoints,COUNT(p.id) AS checkinCount FROM `user` u LEFT JOIN point_ledger p ON p.user_id=u.id WHERE u.status=1 GROUP BY u.id,u.nickname ORDER BY totalPoints DESC,u.id ASC LIMIT 50")); }
+    @GetMapping("/stats/mine")
+    public Result<?> stats(HttpServletRequest request) {
+        long id=user(request).id();
+        return Result.ok(Map.of("activityCount",db.queryForObject("SELECT COUNT(*) FROM activity_sign WHERE user_id=? AND status='JOINED'",Integer.class,id),
+            "createdCount",db.queryForObject("SELECT COUNT(*) FROM activity WHERE publisher_id=?",Integer.class,id),
+            "competitionCount",db.queryForObject("SELECT COUNT(*) FROM competition_sign WHERE user_id=? AND status IN ('ENROLLED','CHECKED')",Integer.class,id),
+            "checkinCount",db.queryForObject("SELECT COUNT(*) FROM competition_sign WHERE user_id=? AND status='CHECKED'",Integer.class,id),
+            "sportBreakdown",db.queryForList("SELECT sport_type AS sportType,COUNT(*) AS count FROM activity a JOIN activity_sign s ON s.activity_id=a.id WHERE s.user_id=? AND s.status='JOINED' GROUP BY sport_type ORDER BY count DESC",id)));
+    }
+    @GetMapping("/recommendations")
+    public Result<?> recommendations(HttpServletRequest request) {
+        long id=user(request).id();
+        return Result.ok(db.queryForList("""
+            SELECT a.id,a.publisher_id AS publisherId,u.nickname AS publisherName,a.venue_id AS venueId,v.name AS venueName,a.title,a.sport_type AS sportType,a.description,a.image_url AS imageUrl,a.start_time AS startTime,a.end_time AS endTime,a.max_people AS maxPeople,
+              (SELECT COUNT(*) FROM activity_sign x WHERE x.activity_id=a.id AND x.status='JOINED') AS joinedCount,a.status,a.created_at AS createdAt
+            FROM activity a JOIN `user` u ON u.id=a.publisher_id LEFT JOIN sport_venue v ON v.id=a.venue_id
+            WHERE a.status='OPEN' AND a.start_time>NOW() AND a.publisher_id<>? AND a.sport_type IN (SELECT a2.sport_type FROM activity a2 JOIN activity_sign s2 ON s2.activity_id=a2.id WHERE s2.user_id=? GROUP BY a2.sport_type)
+            ORDER BY a.start_time ASC LIMIT 6
+            """,id,id));
+    }
+    private void competitionManager(CurrentUser u,long id) { ownCompetition(u,id); }
+    @GetMapping("/competitions/{id}/participants")
+    public Result<?> participants(HttpServletRequest request,@PathVariable long id) { competitionManager(user(request),id); return Result.ok(db.queryForList("SELECT s.id,s.user_id AS userId,u.nickname,u.username,s.status,s.approval_status AS approvalStatus,s.proof_image IS NOT NULL AS checked,s.result_rank AS resultRank,s.result_score AS resultScore FROM competition_sign s JOIN `user` u ON u.id=s.user_id WHERE s.competition_id=? ORDER BY s.created_at",id)); }
+    @PutMapping("/competitions/{competitionId}/participants/{signId}/approval")
+    public Result<?> approval(HttpServletRequest request,@PathVariable long competitionId,@PathVariable long signId,@RequestParam String status) { competitionManager(user(request),competitionId); if(!List.of("APPROVED","REJECTED","PENDING").contains(status)) throw new BusinessException("报名审核状态无效"); db.update("UPDATE competition_sign SET approval_status=? WHERE id=? AND competition_id=?",status,signId,competitionId); return Result.ok(null); }
+    @PutMapping("/competitions/{competitionId}/participants/{signId}/result")
+    public Result<?> result(HttpServletRequest request,@PathVariable long competitionId,@PathVariable long signId,@Valid @RequestBody ResultInput input) { competitionManager(user(request),competitionId); db.update("UPDATE competition_sign SET result_rank=?,result_score=? WHERE id=? AND competition_id=?",input.rank(),input.score(),signId,competitionId); return Result.ok(null); }
     @GetMapping("/community/posts")
     public Result<?> posts() { return Result.ok(db.queryForList("""
         SELECT p.id,p.user_id AS userId,u.nickname,p.post_type AS postType,p.content,p.image_url AS imageUrl,p.created_at AS createdAt,
-          (SELECT COUNT(*) FROM community_comment c WHERE c.post_id=p.id) AS replyCount
+          (SELECT COUNT(*) FROM community_comment c WHERE c.post_id=p.id) AS replyCount,
+          (SELECT COUNT(*) FROM community_post_like l WHERE l.post_id=p.id) AS likeCount,
+          (SELECT COUNT(*) FROM community_post_favorite f WHERE f.post_id=p.id) AS favoriteCount
         FROM community_post p JOIN `user` u ON u.id=p.user_id ORDER BY p.created_at DESC LIMIT 100
         """)); }
     @PostMapping("/community/posts")
@@ -165,6 +208,17 @@ public class ExperienceController {
             throw new BusinessException("只能删除自己的回复");
         return Result.ok(null);
     }
+    @PostMapping("/community/posts/{id}/like")
+    public Result<?> like(HttpServletRequest request,@PathVariable long id) { toggle("community_post_like",id,user(request).id()); return Result.ok(null); }
+    @PostMapping("/community/posts/{id}/favorite")
+    public Result<?> favorite(HttpServletRequest request,@PathVariable long id) { toggle("community_post_favorite",id,user(request).id()); return Result.ok(null); }
+    private void toggle(String table,long postId,long userId) { int count=db.queryForObject("SELECT COUNT(*) FROM "+table+" WHERE post_id=? AND user_id=?",Integer.class,postId,userId); if(count==0) db.update("INSERT INTO "+table+"(post_id,user_id) VALUES(?,?)",postId,userId); else db.update("DELETE FROM "+table+" WHERE post_id=? AND user_id=?",postId,userId); }
+    @PostMapping("/community/posts/{id}/report")
+    public Result<?> report(HttpServletRequest request,@PathVariable long id,@Valid @RequestBody ReportInput input) { try { db.update("INSERT INTO community_report(post_id,user_id,reason) VALUES(?,?,?)",id,user(request).id(),input.reason()); } catch(DuplicateKeyException e) { throw new BusinessException("你已经举报过这条动态"); } return Result.ok(null); }
+    @GetMapping("/admin/community/reports")
+    public Result<?> reports(HttpServletRequest request) { if(!"ADMIN".equals(user(request).role())) throw new BusinessException("需要管理员权限"); return Result.ok(db.queryForList("SELECT r.id,r.post_id AS postId,r.reason,r.status,r.created_at AS createdAt,u.nickname,p.content FROM community_report r JOIN `user` u ON u.id=r.user_id JOIN community_post p ON p.id=r.post_id ORDER BY r.created_at DESC")); }
+    @PutMapping("/admin/community/reports/{id}")
+    public Result<?> reportStatus(HttpServletRequest request,@PathVariable long id,@RequestParam String status) { if(!"ADMIN".equals(user(request).role())) throw new BusinessException("需要管理员权限"); if(!List.of("PENDING","RESOLVED","IGNORED").contains(status)) throw new BusinessException("举报状态无效"); db.update("UPDATE community_report SET status=? WHERE id=?",status,id); return Result.ok(null); }
     @GetMapping("/admin/users")
     public Result<?> users() { return Result.ok(db.queryForList("SELECT id,username,nickname,role FROM `user` ORDER BY id")); }
     @PutMapping("/admin/users/{id}/role")
