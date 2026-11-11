@@ -15,7 +15,7 @@ Spring Boot + Vue 3 毕业设计项目。
 ## 后端启动
 
 1. 使用已有 MySQL 管理员账号执行 `graduation-project-backend/src/main/resources/db/01_create_database_user.sql`。
-2. 以 `lcr/123456` 连接 `lvyin_sport`，依次执行 `02_schema.sql`、`03_seed.sql`、`05_activity_image.sql`、`06_competitions_community_points.sql`、`08_rank_stats_interaction.sql`、`09_avatar_image.sql`、`10_sport_checkin_rewards.sql`。需要演示数据时再执行 `04_demo.sql` 和 `07_demo_experience.sql`；演示脚本可重复执行。
+2. 以 `lcr/123456` 连接 `lvyin_sport`，依次执行 `02_schema.sql`、`03_seed.sql`、`05_activity_image.sql`、`06_competitions_community_points.sql`、`08_rank_stats_interaction.sql`、`09_avatar_image.sql`、`10_sport_checkin_rewards.sql`、`11_checkin_policy.sql`。需要演示数据时再执行 `04_demo.sql` 和 `07_demo_experience.sql`；演示脚本可重复执行。
 3. 在后端目录执行 `mvn spring-boot:run`。
 4. 访问 `GET http://localhost:8080/api/system/health`。
 
@@ -27,7 +27,7 @@ Spring Boot + Vue 3 毕业设计项目。
 
 前端包含活动发现与搜索、活动详情、发布/编辑/取消、报名/取消报名、评论、我的活动、场地、公告、个人资料，以及管理员场地、活动、公告管理。活动支持系统图片、图片地址和本地图片作为封面。
 
-每日运动打卡：登录后在“每日打卡”填写运动类型、时长、距离，可选照片和感受；每人每天一次。系统管理员在“奖励规则”设置每日、连续天数或累计次数奖励，可停用和重新启用。奖励写入 `user_reward`，积分写入 `point_ledger`，在“我的积分”可查看。
+每日运动打卡：登录后填写运动类型、时长，可选照片和感受；跑步、步行、骑行等项目可选填距离，球类无需填公里数。每人每天一次，达到管理员设置的最低运动时长才算有效打卡。系统管理员可配置每日、连续天数和累计次数的多档奖励；普通用户可见每档单位、进度、奖励及领取状态。奖励即时写入 `user_reward`，积分写入 `point_ledger`，在“我的积分”可查看。连续打卡中断后重新计算，累计次数保留；每日奖励按天发放，连续与累计档位各发一次。
 
 赛事与社区功能：系统管理员在“角色管理”中授予赛事管理员角色；赛事管理员管理自己创建的赛事，系统管理员可管理所有赛事。学生报名赛事，并在赛事时间内上传照片打卡，积分进入排行榜。赛事管理员可以审核报名和录入名次/成绩。运动社区支持动态、话题、照片、回复、点赞、收藏和举报；系统管理员可处理举报。积分页面展示个人统计、勋章和按运动偏好推荐的活动。
 
@@ -70,8 +70,9 @@ Spring Boot + Vue 3 毕业设计项目。
 - `GET /api/competitions/{id}/participants`、报名审核及成绩管理接口
 - `POST /api/community/posts/{id}/like`、`favorite`、`report` 社区互动接口
 
-升级现有数据库时，依次运行尚未执行的迁移脚本 `05_activity_image.sql`、`06_competitions_community_points.sql`、`08_rank_stats_interaction.sql`、`09_avatar_image.sql` 和 `10_sport_checkin_rewards.sql`。赛事与社区演示数据可运行 `07_demo_experience.sql` 导入。
+升级现有数据库时，依次运行尚未执行的迁移脚本 `05_activity_image.sql`、`06_competitions_community_points.sql`、`08_rank_stats_interaction.sql`、`09_avatar_image.sql`、`10_sport_checkin_rewards.sql` 和 `11_checkin_policy.sql`。赛事与社区演示数据可运行 `07_demo_experience.sql` 导入。
 - `GET/POST /api/checkins/mine`、`/api/checkins` 查询与提交每日运动打卡
+- `GET/PUT /api/admin/checkin-policy` 查看与设置最低有效运动时长
 - `GET/POST/PUT/DELETE /api/admin/reward-rules...` 管理奖励规则；`PUT /api/admin/reward-rules/{id}/enable` 重新启用
 - `GET/POST/PUT/DELETE /api/competitions...` 浏览与管理赛事
 - `POST/DELETE /api/competitions/{id}/enroll` 报名与取消报名

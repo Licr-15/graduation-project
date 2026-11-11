@@ -10,8 +10,9 @@ const points = ref({ total: 0, records: [], enrollments: [] })
 const users = ref([])
 const leaderboard = ref([])
 const stats = ref({ activityCount: 0, createdCount: 0, competitionCount: 0, checkinCount: 0, sportBreakdown: [] })
-const checkinData = ref({ today: [], records: [], streak: 0, total: 0, rewards: [] })
+const checkinData = ref({ today: [], records: [], streak: 0, total: 0, rewards: [], goals: [], minDurationMinutes: 20 })
 const rules = ref([])
+const checkinPolicy = reactive({ minDurationMinutes: 20 })
 const recommendations = ref([])
 const participants = ref({})
 const replies = ref({})
@@ -26,6 +27,7 @@ const post = reactive({ postType: 'DYNAMIC', content: '', imageUrl: '' })
 const checkinForm = reactive({ sportType: '羽毛球', durationMinutes: 30, distanceKm: 0, imageUrl: '', note: '' })
 const rule = reactive({ id: null, name: '', ruleType: 'STREAK', targetValue: 3, rewardPoints: 10, badgeName: '' })
 const canManage = computed(() => ['ADMIN', 'EVENT_MANAGER'].includes(props.user?.role))
+const hasDistance = computed(() => /跑步|慢跑|散步|步行|健走|骑行|自行车|徒步/.test(checkinForm.sportType))
 const enrolled = computed(() => new Map(points.value.enrollments.map(row => [Number(row.competitionId), row.status])))
 function requireLogin() { if (props.token) return true; emit('login'); return false }
 function date(value) { return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '' }
@@ -43,7 +45,11 @@ async function load() {
     }
     else if (props.page === 'admin-users') users.value = await api.get('/admin/users')
     else if (props.page === 'checkins') checkinData.value = await api.get('/checkins/mine')
-    else if (props.page === 'admin-reward-rules') rules.value = await api.get('/admin/reward-rules')
+    else if (props.page === 'admin-reward-rules') {
+      const [currentRules, policy] = await Promise.all([api.get('/admin/reward-rules'), api.get('/admin/checkin-policy')])
+      rules.value = currentRules
+      Object.assign(checkinPolicy, policy)
+    }
   } catch (e) { error.value = e.message }
 }
 async function run(action, success = '操作成功') {
@@ -93,8 +99,10 @@ function reportPost(row) {
   const reason = window.prompt('请输入举报原因', '不友善或与运动无关')
   if (reason?.trim()) run(() => api.post(`/community/posts/${row.id}/report`, { reason: reason.trim() }), '举报已提交')
 }
-function saveCheckin() { run(() => api.post('/checkins', { ...checkinForm, durationMinutes: Number(checkinForm.durationMinutes), distanceKm: Number(checkinForm.distanceKm) }), '今日运动打卡成功') }
+function saveCheckin() { run(() => api.post('/checkins', { ...checkinForm, durationMinutes: Number(checkinForm.durationMinutes), distanceKm: hasDistance.value ? Number(checkinForm.distanceKm) : 0 }), '今日运动打卡成功，奖励进度已更新') }
 function chooseCheckinImage(event) { readImage(event, value => checkinForm.imageUrl = value) }
+function saveCheckinPolicy() { run(() => api.put('/admin/checkin-policy', { minDurationMinutes: Number(checkinPolicy.minDurationMinutes) }), '有效打卡条件已保存') }
+function ruleTypeChanged() { if (rule.ruleType === 'DAILY') rule.targetValue = 1 }
 function saveRule() { const data = { ...rule, targetValue: Number(rule.targetValue), rewardPoints: Number(rule.rewardPoints) }; run(async () => { if (rule.id) await api.put(`/admin/reward-rules/${rule.id}`, data); else await api.post('/admin/reward-rules', data); Object.assign(rule, { id: null, name: '', ruleType: 'STREAK', targetValue: 3, rewardPoints: 10, badgeName: '' }) }, '奖励规则已保存') }
 function resetRule() { Object.assign(rule, { id: null, name: '', ruleType: 'STREAK', targetValue: 3, rewardPoints: 10, badgeName: '' }) }
 function editRule(item) { Object.assign(rule, item) }
@@ -149,24 +157,58 @@ onMounted(load)
     </section>
   </template>
 
-  <template v-else-if="page === 'checkins'"><div class="xp-total"><CalendarDays :size="25" /><span>连续打卡</span><strong>{{ checkinData.streak }} 天</strong><span>累计 {{ checkinData.total }} 次</span></div><form v-if="!checkinData.today?.length" class="xp-form" @submit.prevent="saveCheckin"><div class="xp-title"><Camera :size="20" /><h2>完成今日运动</h2></div><div class="xp-fields"><label>运动类型<input v-model="checkinForm.sportType" required maxlength="50" /></label><label>运动时长（分钟）<input v-model.number="checkinForm.durationMinutes" type="number" min="0" max="1440" /></label><label>运动距离（公里）<input v-model.number="checkinForm.distanceKm" type="number" min="0" step="0.1" /></label><label>运动照片<span class="xp-upload">选择照片<input type="file" accept="image/jpeg,image/png,image/webp" @change="chooseCheckinImage" /></span></label></div><textarea v-model="checkinForm.note" rows="2" maxlength="500" placeholder="写下今天的运动感受"></textarea><img v-if="checkinForm.imageUrl" class="xp-preview" :src="checkinForm.imageUrl" alt="运动照片预览"><div class="xp-actions"><button class="primary-button" :disabled="busy"><Camera :size="16" />今日打卡</button></div></form><div v-else class="xp-success">今天已经完成运动打卡，明天再来继续坚持。</div><h2 class="xp-section">我的打卡记录</h2><div v-if="!checkinData.records.length" class="state-panel">还没有运动记录</div><div v-else class="xp-list"><div v-for="item in checkinData.records" :key="item.id" class="xp-item xp-record"><div><strong>{{ item.sportType }} · {{ item.checkinDate }}</strong><small>{{ item.durationMinutes }} 分钟 · {{ item.distanceKm }} 公里 {{ item.note || '' }}</small></div><span class="small-tag">已打卡</span></div></div><h2 v-if="checkinData.rewards?.length" class="xp-section">获得的奖励</h2><div class="xp-badge-grid"><div v-for="item in checkinData.rewards" :key="item.name + item.createdAt"><span>🏅</span><strong>{{ item.name }}</strong><small>+{{ item.rewardPoints }} 积分 {{ item.badgeName || '' }}</small></div></div></template>
+  <template v-else-if="page === 'checkins'">
+    <div class="xp-total"><CalendarDays :size="25" /><span>连续打卡</span><strong>{{ checkinData.streak }} 天</strong><span>累计 {{ checkinData.total }} 次</span></div>
+    <section class="xp-goals-section">
+      <h2 class="xp-section">打卡目标与奖励</h2>
+      <p class="xp-goal-note">每次运动至少 {{ checkinData.minDurationMinutes }} 分钟，每天可打卡一次；连续打卡中断后重新计算，累计次数保留。</p>
+      <div v-if="!checkinData.goals.length" class="xp-inline-empty">当前暂无启用中的奖励目标</div>
+      <div v-else class="xp-goal-list">
+        <div v-for="goal in checkinData.goals" :key="goal.id" class="xp-goal-row">
+          <div class="xp-goal-heading"><div><span class="small-tag">{{ { DAILY: '每日', STREAK: '连续', TOTAL: '累计' }[goal.ruleType] }}</span><strong>{{ goal.name }}</strong></div><span class="xp-goal-points">+{{ goal.rewardPoints }} 积分</span></div>
+          <div class="xp-goal-meta"><span>{{ goal.ruleType === 'DAILY' ? '今日完成' : goal.ruleType === 'STREAK' ? '连续打卡' : '累计打卡' }} {{ Math.min(goal.progress, goal.targetValue) }}/{{ goal.targetValue }} {{ goal.unit }}</span><span>{{ goal.claimed ? '已领取' : `还差 ${Math.max(0, goal.targetValue - goal.progress)} ${goal.unit}` }}</span></div>
+          <div class="xp-goal-track" role="progressbar" :aria-valuenow="Math.min(goal.progress, goal.targetValue)" :aria-valuemax="goal.targetValue" aria-valuemin="0"><span :style="{ width: `${Math.min(100, goal.progress / goal.targetValue * 100)}%` }"></span></div>
+          <small v-if="goal.badgeName" class="xp-goal-badge">勋章：{{ goal.badgeName }}</small>
+        </div>
+      </div>
+    </section>
+    <form v-if="!checkinData.today?.length" class="xp-form" @submit.prevent="saveCheckin">
+      <div class="xp-title"><Camera :size="20" /><h2>完成今日运动</h2></div>
+      <div class="xp-fields">
+        <label>运动类型<input v-model="checkinForm.sportType" list="checkin-sports" required maxlength="50" /><datalist id="checkin-sports"><option value="羽毛球" /><option value="乒乓球" /><option value="篮球" /><option value="足球" /><option value="排球" /><option value="跑步" /><option value="散步" /><option value="骑行" /><option value="健身" /></datalist></label>
+        <label>运动时长（分钟）<input v-model.number="checkinForm.durationMinutes" type="number" :min="checkinData.minDurationMinutes" max="1440" required /></label>
+        <label v-if="hasDistance">运动距离（公里，可选）<input v-model.number="checkinForm.distanceKm" type="number" min="0" step="0.1" /></label>
+        <label>运动照片<span class="xp-upload">选择照片<input type="file" accept="image/jpeg,image/png,image/webp" @change="chooseCheckinImage" /></span></label>
+      </div>
+      <textarea v-model="checkinForm.note" rows="2" maxlength="500" placeholder="写下今天的运动感受"></textarea>
+      <img v-if="checkinForm.imageUrl" class="xp-preview" :src="checkinForm.imageUrl" alt="运动照片预览" />
+      <div class="xp-actions"><button class="primary-button" :disabled="busy"><Camera :size="16" />今日打卡</button></div>
+    </form>
+    <div v-else class="xp-success">今天已经完成运动打卡，明天再来继续坚持。</div>
+    <h2 class="xp-section">我的打卡记录</h2>
+    <div v-if="!checkinData.records.length" class="xp-inline-empty">还没有运动记录</div>
+    <div v-else class="xp-list"><div v-for="item in checkinData.records" :key="item.id" class="xp-item xp-record"><div><strong>{{ item.sportType }} · {{ item.checkinDate }}</strong><small>{{ item.durationMinutes }} 分钟<span v-if="Number(item.distanceKm) > 0"> · {{ item.distanceKm }} 公里</span><span v-if="item.note"> · {{ item.note }}</span></small></div><span class="small-tag">已打卡</span></div></div>
+    <h2 v-if="checkinData.rewards?.length" class="xp-section">获得的奖励</h2>
+    <div class="xp-badge-grid"><div v-for="item in checkinData.rewards" :key="item.name + item.createdAt"><Trophy :size="20" /><strong>{{ item.name }}</strong><small>+{{ item.rewardPoints }} 积分 {{ item.badgeName || '' }}</small></div></div>
+  </template>
 
   <template v-else-if="page === 'admin-reward-rules'">
+    <form class="xp-form xp-policy-form" @submit.prevent="saveCheckinPolicy"><div class="xp-title"><CalendarDays :size="20" /><h2>有效打卡条件</h2></div><div class="xp-policy-fields"><label>最低运动时长（分钟）<input v-model.number="checkinPolicy.minDurationMinutes" type="number" min="1" max="1440" required /></label><button class="outline-button" :disabled="busy">保存条件</button></div></form>
     <form class="xp-form" @submit.prevent="saveRule">
       <div class="xp-title"><Trophy :size="20" /><h2>{{ rule.id ? '编辑奖励规则' : '新增奖励规则' }}</h2></div>
       <div class="xp-fields">
         <label>规则名称<input v-model="rule.name" required maxlength="100" /></label>
-        <label>规则类型<select v-model="rule.ruleType"><option value="DAILY">每日打卡</option><option value="STREAK">连续打卡</option><option value="TOTAL">累计次数</option></select></label>
-        <label>达成目标<input v-model.number="rule.targetValue" type="number" min="1" :max="rule.ruleType === 'DAILY' ? 1 : 3650" required /></label>
+        <label>规则类型<select v-model="rule.ruleType" @change="ruleTypeChanged"><option value="DAILY">每日打卡</option><option value="STREAK">连续打卡</option><option value="TOTAL">累计次数</option></select></label>
+        <label>达成目标（{{ rule.ruleType === 'STREAK' ? '天' : '次' }}）<input v-model.number="rule.targetValue" type="number" min="1" :max="rule.ruleType === 'DAILY' ? 1 : 3650" :disabled="rule.ruleType === 'DAILY'" required /></label>
         <label>奖励积分<input v-model.number="rule.rewardPoints" type="number" min="0" max="10000" required /></label>
       </div>
       <label>奖励勋章名称<input v-model="rule.badgeName" maxlength="100" placeholder="可选，例如坚持运动" /></label>
       <div class="xp-actions"><button class="primary-button" :disabled="busy"><Plus :size="16" />保存规则</button><button v-if="rule.id" type="button" class="outline-button" @click="resetRule">取消编辑</button></div>
     </form>
     <div v-if="!rules.length" class="state-panel">暂无奖励规则</div>
-    <div v-else class="xp-list">
-      <div v-for="item in rules" :key="item.id" class="xp-item xp-record">
-        <div><strong>{{ item.name }}</strong><small>{{ { DAILY: '每日打卡', STREAK: '连续打卡', TOTAL: '累计次数' }[item.ruleType] }} · 目标 {{ item.targetValue }} · +{{ item.rewardPoints }} 积分 {{ item.badgeName || '' }}</small></div>
+    <div v-else class="xp-list xp-rule-list">
+      <div v-for="item in rules" :key="item.id" class="xp-item xp-record xp-rule-item">
+        <div><strong>{{ item.name }}</strong><small>{{ { DAILY: '每日打卡', STREAK: '连续打卡', TOTAL: '累计次数' }[item.ruleType] }} · 目标 {{ item.targetValue }} {{ item.ruleType === 'STREAK' ? '天' : '次' }} · +{{ item.rewardPoints }} 积分 {{ item.badgeName || '' }}</small></div>
         <span class="small-tag" :class="{ 'muted-tag': !item.status }">{{ item.status ? '启用中' : '已停用' }}</span>
         <button class="text-button" :disabled="busy" @click="editRule(item)">编辑</button>
         <button v-if="item.status" class="icon-button danger-text" title="停用规则" :disabled="busy" @click="run(() => api.delete(`/admin/reward-rules/${item.id}`), '规则已停用')"><Trash2 :size="16" /></button>

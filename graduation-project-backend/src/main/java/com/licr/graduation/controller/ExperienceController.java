@@ -37,6 +37,7 @@ public class ExperienceController {
     public record ReportInput(@NotBlank @Size(max=255) String reason) {}
     public record CheckinInput(@NotBlank @Size(max=50) String sportType, @Min(0) @Max(1440) int durationMinutes, @DecimalMin("0") @DecimalMax("999") double distanceKm, String imageUrl, @Size(max=500) String note) {}
     public record RuleInput(@NotBlank @Size(max=100) String name, @NotNull @Pattern(regexp="DAILY|STREAK|TOTAL") String ruleType, @Min(1) @Max(3650) int targetValue, @Min(0) @Max(10000) int rewardPoints, @Size(max=100) String badgeName) {}
+    public record CheckinPolicyInput(@Min(1) @Max(1440) int minDurationMinutes) {}
 
     private CurrentUser user(HttpServletRequest request) { return AuthController.user(request); }
     private void manager(CurrentUser user) {
@@ -80,22 +81,41 @@ public class ExperienceController {
     private void validateRule(RuleInput input) {
         if ("DAILY".equals(input.ruleType()) && input.targetValue() != 1) throw new BusinessException("每日打卡规则的达成目标必须为 1");
     }
+    private int minimumCheckinMinutes() {
+        return db.queryForObject("SELECT min_duration_minutes FROM sport_checkin_policy WHERE id=1", Integer.class);
+    }
+    private boolean distanceSport(String sportType) {
+        return sportType.matches(".*(跑步|慢跑|散步|步行|健走|骑行|自行车|徒步).*");
+    }
 
     @GetMapping("/checkins/mine")
     public Result<?> checkins(HttpServletRequest request) {
         long id=user(request).id();
+        int currentStreak=streak(id);
+        int total=db.queryForObject("SELECT COUNT(*) FROM sport_checkin WHERE user_id=?",Integer.class,id);
+        List<Map<String,Object>> goals=db.queryForList("SELECT r.id,r.name,r.rule_type AS ruleType,r.target_value AS targetValue,r.reward_points AS rewardPoints,r.badge_name AS badgeName,EXISTS(SELECT 1 FROM user_reward ur WHERE ur.user_id=? AND ur.rule_id=r.id AND (r.rule_type<>'DAILY' OR ur.source_date=CURDATE())) AS claimed FROM reward_rule r WHERE r.status=1 ORDER BY FIELD(r.rule_type,'DAILY','STREAK','TOTAL'),r.target_value,r.id",id);
+        for (Map<String,Object> goal : goals) {
+            String type=(String)goal.get("ruleType");
+            goal.put("progress", "DAILY".equals(type) ? db.queryForObject("SELECT COUNT(*) FROM sport_checkin WHERE user_id=? AND checkin_date=CURDATE()",Integer.class,id) : "STREAK".equals(type) ? currentStreak : total);
+            goal.put("unit", "STREAK".equals(type) ? "天" : "次");
+        }
         return Result.ok(Map.of("today", db.queryForList("SELECT id,sport_type AS sportType,checkin_date AS checkinDate,duration_minutes AS durationMinutes,distance_km AS distanceKm,image_url AS imageUrl,note FROM sport_checkin WHERE user_id=? AND checkin_date=CURDATE()",id),
             "records",db.queryForList("SELECT id,sport_type AS sportType,checkin_date AS checkinDate,duration_minutes AS durationMinutes,distance_km AS distanceKm,note FROM sport_checkin WHERE user_id=? ORDER BY checkin_date DESC LIMIT 60",id),
-            "streak",streak(id),
-            "total",db.queryForObject("SELECT COUNT(*) FROM sport_checkin WHERE user_id=?",Integer.class,id),
+            "streak",currentStreak,
+            "total",total,
+            "goals",goals,
+            "minDurationMinutes",minimumCheckinMinutes(),
             "rewards",db.queryForList("SELECT r.name,ur.reward_points AS rewardPoints,ur.badge_name AS badgeName,ur.created_at AS createdAt FROM user_reward ur JOIN reward_rule r ON r.id=ur.rule_id WHERE ur.user_id=? ORDER BY ur.created_at DESC",id)));
     }
     @PostMapping("/checkins")
     @Transactional
     public Result<?> createCheckin(HttpServletRequest request,@Valid @RequestBody CheckinInput input) {
         long id=user(request).id();
+        int minimum=minimumCheckinMinutes();
+        if (input.durationMinutes()<minimum) throw new BusinessException("运动至少 "+minimum+" 分钟才算有效打卡");
         if(input.imageUrl()!=null && !input.imageUrl().isBlank() && (!input.imageUrl().matches("(?s)^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$") || input.imageUrl().length()>2800000)) throw new BusinessException("请选择不超过 2MB 的 JPG、PNG 或 WebP 照片");
-        try { db.update("INSERT INTO sport_checkin(user_id,sport_type,checkin_date,duration_minutes,distance_km,image_url,note) VALUES(?,?,CURDATE(),?,?,?,?)",id,input.sportType(),input.durationMinutes(),input.distanceKm(),input.imageUrl(),input.note()); }
+        double distance=distanceSport(input.sportType()) ? input.distanceKm() : 0;
+        try { db.update("INSERT INTO sport_checkin(user_id,sport_type,checkin_date,duration_minutes,distance_km,image_url,note) VALUES(?,?,CURDATE(),?,?,?,?)",id,input.sportType(),input.durationMinutes(),distance,input.imageUrl(),input.note()); }
         catch(DuplicateKeyException e) { throw new BusinessException("今天已经打卡，每天只能打卡一次"); }
         Integer total=db.queryForObject("SELECT COUNT(*) FROM sport_checkin WHERE user_id=?",Integer.class,id);
         int currentStreak=streak(id);
@@ -111,7 +131,11 @@ public class ExperienceController {
         return Result.ok(null);
     }
     @GetMapping("/admin/reward-rules")
-    public Result<?> rules(HttpServletRequest request) { admin(user(request)); return Result.ok(db.queryForList("SELECT id,name,rule_type AS ruleType,target_value AS targetValue,reward_points AS rewardPoints,badge_name AS badgeName,status FROM reward_rule ORDER BY target_value")); }
+    public Result<?> rules(HttpServletRequest request) { admin(user(request)); return Result.ok(db.queryForList("SELECT id,name,rule_type AS ruleType,target_value AS targetValue,reward_points AS rewardPoints,badge_name AS badgeName,status FROM reward_rule ORDER BY FIELD(rule_type,'DAILY','STREAK','TOTAL'),target_value,id")); }
+    @GetMapping("/admin/checkin-policy")
+    public Result<?> checkinPolicy(HttpServletRequest request) { admin(user(request)); return Result.ok(Map.of("minDurationMinutes",minimumCheckinMinutes())); }
+    @PutMapping("/admin/checkin-policy")
+    public Result<?> updateCheckinPolicy(HttpServletRequest request,@Valid @RequestBody CheckinPolicyInput input) { admin(user(request)); db.update("UPDATE sport_checkin_policy SET min_duration_minutes=? WHERE id=1",input.minDurationMinutes()); return Result.ok(null); }
     @PostMapping("/admin/reward-rules")
     public Result<?> createRule(HttpServletRequest request,@Valid @RequestBody RuleInput input) { CurrentUser u=user(request); admin(u); validateRule(input); return Result.ok(insert("INSERT INTO reward_rule(name,rule_type,target_value,reward_points,badge_name,created_by) VALUES(?,?,?,?,?,?)",input.name(),input.ruleType(),input.targetValue(),input.rewardPoints(),input.badgeName(),u.id())); }
     @PutMapping("/admin/reward-rules/{id}")
