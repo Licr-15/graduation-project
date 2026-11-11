@@ -31,6 +31,7 @@ import {
   Search,
   ShieldCheck,
   Shuffle,
+  Trophy,
   Trash2,
   UserRound,
   Users,
