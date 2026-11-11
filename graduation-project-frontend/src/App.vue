@@ -490,7 +490,7 @@ async function saveProfile() {
       phone: profileForm.phone.trim() || null,
       avatar: profileForm.avatar || null,
     });
-    localStorage.setItem("lvyin_user", JSON.stringify(auth.user));
+    sessionStorage.setItem("lvyin_user", JSON.stringify(auth.user));
     message("资料已保存");
   } catch (err) {
     fail(err);
