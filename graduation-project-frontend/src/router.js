@@ -12,7 +12,9 @@ const routes = [
   { path: "/competitions", name: "competitions", component: RouteShell },
   { path: "/community", name: "community", component: RouteShell },
   { path: "/points", name: "points", component: RouteShell, meta: { auth: true } },
+  { path: "/checkins", name: "checkins", component: RouteShell, meta: { auth: true } },
   { path: "/admin/users", name: "admin-users", component: RouteShell, meta: { admin: true } },
+  { path: "/admin/reward-rules", name: "admin-reward-rules", component: RouteShell, meta: { admin: true } },
   {
     path: "/profile",
     name: "profile",

@@ -104,6 +104,8 @@ const title = computed(
       competitions: "校园赛事",
       community: "运动社区",
       points: "我的积分",
+      checkins: "每日运动打卡",
+      "admin-reward-rules": "奖励规则",
       "admin-users": "角色管理",
       profile: "个人资料",
       "admin-activities": "活动管理",
@@ -624,6 +626,7 @@ onUnmounted(() => {
       <RouterLink to="/competitions" class="side-link" :class="{ current: page === 'competitions' }"><Activity :size="18" />校园赛事</RouterLink>
       <RouterLink to="/community" class="side-link" :class="{ current: page === 'community' }"><MessageCircle :size="18" />运动社区</RouterLink>
       <RouterLink to="/points" class="side-link" :class="{ current: page === 'points' }"><Check :size="18" />我的积分</RouterLink>
+      <RouterLink to="/checkins" class="side-link" :class="{ current: page === 'checkins' }"><CalendarDays :size="18" />每日打卡</RouterLink>
       <div v-if="isAdmin" class="side-label section-gap">管理员</div>
       <RouterLink
         v-if="isAdmin"
@@ -647,6 +650,7 @@ onUnmounted(() => {
         ><Megaphone :size="18" />公告管理</RouterLink
       >
       <RouterLink v-if="isAdmin" to="/admin/users" class="side-link" :class="{ current: page === 'admin-users' }"><Users :size="18" />角色管理</RouterLink>
+      <RouterLink v-if="isAdmin" to="/admin/reward-rules" class="side-link" :class="{ current: page === 'admin-reward-rules' }"><Trophy :size="18" />奖励规则</RouterLink>
       <div class="side-bottom">
         <span class="side-dot"></span> 和同学一起，动起来
       </div>
@@ -683,7 +687,7 @@ onUnmounted(() => {
         </div>
       </header>
       <main class="content">
-        <ExperiencePage v-if="['competitions', 'community', 'points', 'admin-users'].includes(page)" :key="page" :page="page" :user="auth.user" :token="auth.token" @login="authOpen = true" />
+        <ExperiencePage v-if="['competitions', 'community', 'points', 'admin-users', 'checkins', 'admin-reward-rules'].includes(page)" :key="page" :page="page" :user="auth.user" :token="auth.token" @login="authOpen = true" />
         <template v-else-if="page === 'activities'">
           <div class="page-head">
             <div>
