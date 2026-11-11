@@ -3,6 +3,7 @@ package com.licr.graduation.controller;
 import com.licr.graduation.common.BusinessException;
 import com.licr.graduation.common.Result;
 import com.licr.graduation.security.CurrentUser;
+import com.licr.graduation.service.CheckinRewardService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
@@ -24,7 +25,8 @@ import org.springframework.jdbc.support.GeneratedKeyHolder;
 @RequestMapping("/api")
 public class ExperienceController {
     private final JdbcTemplate db;
-    public ExperienceController(JdbcTemplate db) { this.db = db; }
+    private final CheckinRewardService rewards;
+    public ExperienceController(JdbcTemplate db, CheckinRewardService rewards) { this.db = db; this.rewards = rewards; }
 
     public record CompetitionInput(@NotBlank @Size(max=100) String title, @NotBlank @Size(max=50) String sportType,
         @Size(max=1000) String description, @NotNull LocalDateTime startTime, @NotNull LocalDateTime endTime,
@@ -105,7 +107,7 @@ public class ExperienceController {
             "total",total,
             "goals",goals,
             "minDurationMinutes",minimumCheckinMinutes(),
-            "rewards",db.queryForList("SELECT r.name,ur.reward_points AS rewardPoints,ur.badge_name AS badgeName,ur.created_at AS createdAt FROM user_reward ur JOIN reward_rule r ON r.id=ur.rule_id WHERE ur.user_id=? ORDER BY ur.created_at DESC",id)));
+            "rewards",db.queryForList("SELECT r.name,ur.reward_points AS rewardPoints,ur.badge_name AS badgeName,ur.source_date AS sourceDate,ur.created_at AS createdAt FROM user_reward ur JOIN reward_rule r ON r.id=ur.rule_id WHERE ur.user_id=? ORDER BY ur.source_date DESC,ur.created_at DESC",id)));
     }
     @PostMapping("/checkins")
     @Transactional
@@ -120,14 +122,7 @@ public class ExperienceController {
         Integer total=db.queryForObject("SELECT COUNT(*) FROM sport_checkin WHERE user_id=?",Integer.class,id);
         int currentStreak=streak(id);
         List<Map<String,Object>> rules=db.queryForList("SELECT * FROM reward_rule WHERE status=1 AND ((rule_type='DAILY' AND target_value=1) OR (rule_type='STREAK' AND target_value<=?) OR (rule_type='TOTAL' AND target_value<=?))",currentStreak,total);
-        for (Map<String,Object> r : rules) {
-            String awardKey = "DAILY".equals(r.get("rule_type")) ? LocalDate.now().toString() : "ONCE";
-            int inserted = db.update("INSERT IGNORE INTO user_reward(user_id,rule_id,source_date,award_key,reward_points,badge_name) VALUES(?,?,CURDATE(),?,?,?)", id,r.get("id"),awardKey,r.get("reward_points"),r.get("badge_name"));
-            if (inserted == 1) {
-                Long rewardId = db.queryForObject("SELECT id FROM user_reward WHERE user_id=? AND rule_id=? AND award_key=?",Long.class,id,r.get("id"),awardKey);
-                db.update("INSERT INTO point_ledger(user_id,points,reason,source_type,source_id) VALUES(?,?,?,?,?)",id,r.get("reward_points"),r.get("name")+"奖励","SPORT_REWARD",rewardId);
-            }
-        }
+        for (Map<String,Object> r : rules) rewards.award(id,r,LocalDate.now());
         return Result.ok(null);
     }
     @GetMapping("/admin/reward-rules")
@@ -137,13 +132,13 @@ public class ExperienceController {
     @PutMapping("/admin/checkin-policy")
     public Result<?> updateCheckinPolicy(HttpServletRequest request,@Valid @RequestBody CheckinPolicyInput input) { admin(user(request)); db.update("UPDATE sport_checkin_policy SET min_duration_minutes=? WHERE id=1",input.minDurationMinutes()); return Result.ok(null); }
     @PostMapping("/admin/reward-rules")
-    public Result<?> createRule(HttpServletRequest request,@Valid @RequestBody RuleInput input) { CurrentUser u=user(request); admin(u); validateRule(input); return Result.ok(insert("INSERT INTO reward_rule(name,rule_type,target_value,reward_points,badge_name,created_by) VALUES(?,?,?,?,?,?)",input.name(),input.ruleType(),input.targetValue(),input.rewardPoints(),input.badgeName(),u.id())); }
+    public Result<?> createRule(HttpServletRequest request,@Valid @RequestBody RuleInput input) { CurrentUser u=user(request); admin(u); validateRule(input); long id=insert("INSERT INTO reward_rule(name,rule_type,target_value,reward_points,badge_name,created_by) VALUES(?,?,?,?,?,?)",input.name(),input.ruleType(),input.targetValue(),input.rewardPoints(),input.badgeName(),u.id()); rewards.reconcileDailyRule(id); return Result.ok(id); }
     @PutMapping("/admin/reward-rules/{id}")
-    public Result<?> updateRule(HttpServletRequest request,@PathVariable long id,@Valid @RequestBody RuleInput input) { admin(user(request)); validateRule(input); db.update("UPDATE reward_rule SET name=?,rule_type=?,target_value=?,reward_points=?,badge_name=? WHERE id=?",input.name(),input.ruleType(),input.targetValue(),input.rewardPoints(),input.badgeName(),id); return Result.ok(null); }
+    public Result<?> updateRule(HttpServletRequest request,@PathVariable long id,@Valid @RequestBody RuleInput input) { admin(user(request)); validateRule(input); db.update("UPDATE reward_rule SET name=?,rule_type=?,target_value=?,reward_points=?,badge_name=? WHERE id=?",input.name(),input.ruleType(),input.targetValue(),input.rewardPoints(),input.badgeName(),id); rewards.reconcileDailyRule(id); return Result.ok(null); }
     @DeleteMapping("/admin/reward-rules/{id}")
     public Result<?> deleteRule(HttpServletRequest request,@PathVariable long id) { admin(user(request)); db.update("UPDATE reward_rule SET status=0 WHERE id=?",id); return Result.ok(null); }
     @PutMapping("/admin/reward-rules/{id}/enable")
-    public Result<?> enableRule(HttpServletRequest request,@PathVariable long id) { admin(user(request)); db.update("UPDATE reward_rule SET status=1 WHERE id=?",id); return Result.ok(null); }
+    public Result<?> enableRule(HttpServletRequest request,@PathVariable long id) { admin(user(request)); db.update("UPDATE reward_rule SET status=1 WHERE id=?",id); rewards.reconcileDailyRule(id); return Result.ok(null); }
 
     @GetMapping("/competitions")
     public Result<?> competitions() {

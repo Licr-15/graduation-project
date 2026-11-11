@@ -95,8 +95,20 @@ try {
   assert.equal(points.data.total, points.data.records.reduce((sum, item) => sum + item.points, 0))
   assert.equal(points.data.records.filter(item => item.reason === `${marker}奖励`).length, 2)
   assert.equal(points.data.records.filter(item => item.reason.startsWith(marker)).reduce((sum, item) => sum + item.points, 0), 22)
+  const lateName = `${marker}-LATE`
+  const lateRule = { name: lateName, ruleType: 'DAILY', targetValue: 1, rewardPoints: 4, badgeName: '' }
+  const createdLate = await request(admin, 'POST', '/admin/reward-rules', lateRule)
+  assert.equal(createdLate.success, true, createdLate.message)
+  const afterLate = await request(student, 'GET', '/points/mine')
+  assert.equal(afterLate.data.total, points.data.total + 4)
+  assert.equal(afterLate.data.records.filter(item => item.reason === `${lateName}奖励`).length, 1)
+  const savedAgain = await request(admin, 'PUT', `/admin/reward-rules/${createdLate.data}`, lateRule)
+  assert.equal(savedAgain.success, true, savedAgain.message)
+  const afterRepeat = await request(student, 'GET', '/points/mine')
+  assert.equal(afterRepeat.data.total, afterLate.data.total)
   await student.goto('http://localhost:5173/points')
   await student.getByText(`${marker}奖励`).first().waitFor()
+  await student.getByText(`${lateName}奖励`).waitFor()
   assert.equal(await student.evaluate(() => document.documentElement.scrollWidth > innerWidth), false)
 
   await admin.goto('http://localhost:5173/admin/reward-rules')
@@ -109,7 +121,7 @@ try {
   const enabled = await request(admin, 'GET', '/admin/reward-rules')
   assert.equal(enabled.data.find(rule => rule.id === ruleId)?.status, 1)
   assert.deepEqual(errors, [])
-  console.log(JSON.stringify({ ok: true, userId, ruleId, checkins: 5, streak: 5, testRulePoints: 22, totalPoints: points.data.total, adminRuleToggle: true, browserErrors: errors }))
+  console.log(JSON.stringify({ ok: true, userId, ruleId, checkins: 5, streak: 5, testRulePoints: 22, lateRulePoints: 4, totalPoints: afterRepeat.data.total, adminRuleToggle: true, browserErrors: errors }))
 } catch (error) {
   console.error(JSON.stringify({ ok: false, userId, ruleId, error: error.message, browserErrors: errors }))
   process.exitCode = 1

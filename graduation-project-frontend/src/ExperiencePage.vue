@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { api } from './api.js'
 import { ArrowUpRight, CalendarDays, Camera, Heart, MessageCircle, Plus, Send, ShieldCheck, Star, Trash2, Trophy, Flag, BarChart3, Users } from 'lucide-vue-next'
 
@@ -106,7 +106,9 @@ function ruleTypeChanged() { if (rule.ruleType === 'DAILY') rule.targetValue = 1
 function saveRule() { const data = { ...rule, targetValue: Number(rule.targetValue), rewardPoints: Number(rule.rewardPoints) }; run(async () => { if (rule.id) await api.put(`/admin/reward-rules/${rule.id}`, data); else await api.post('/admin/reward-rules', data); Object.assign(rule, { id: null, name: '', ruleType: 'STREAK', targetValue: 3, rewardPoints: 10, badgeName: '' }) }, '奖励规则已保存') }
 function resetRule() { Object.assign(rule, { id: null, name: '', ruleType: 'STREAK', targetValue: 3, rewardPoints: 10, badgeName: '' }) }
 function editRule(item) { Object.assign(rule, item) }
-onMounted(load)
+function refreshOnFocus() { if (props.page === 'points' || props.page === 'checkins') load() }
+onMounted(() => { load(); window.addEventListener('focus', refreshOnFocus) })
+onUnmounted(() => window.removeEventListener('focus', refreshOnFocus))
 </script>
 
 <template>
@@ -189,7 +191,7 @@ onMounted(load)
     <div v-if="!checkinData.records.length" class="xp-inline-empty">还没有运动记录</div>
     <div v-else class="xp-list"><div v-for="item in checkinData.records" :key="item.id" class="xp-item xp-record"><div><strong>{{ item.sportType }} · {{ item.checkinDate }}</strong><small>{{ item.durationMinutes }} 分钟<span v-if="Number(item.distanceKm) > 0"> · {{ item.distanceKm }} 公里</span><span v-if="item.note"> · {{ item.note }}</span></small></div><span class="small-tag">已打卡</span></div></div>
     <h2 v-if="checkinData.rewards?.length" class="xp-section">获得的奖励</h2>
-    <div class="xp-badge-grid"><div v-for="item in checkinData.rewards" :key="item.name + item.createdAt"><Trophy :size="20" /><strong>{{ item.name }}</strong><small>+{{ item.rewardPoints }} 积分 {{ item.badgeName || '' }}</small></div></div>
+    <div class="xp-badge-grid"><div v-for="item in checkinData.rewards" :key="item.name + item.createdAt"><Trophy :size="20" /><strong>{{ item.name }}</strong><small>{{ item.sourceDate }} · +{{ item.rewardPoints }} 积分 {{ item.badgeName || '' }}</small></div></div>
   </template>
 
   <template v-else-if="page === 'admin-reward-rules'">
