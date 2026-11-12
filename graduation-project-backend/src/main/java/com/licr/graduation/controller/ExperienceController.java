@@ -249,7 +249,7 @@ public class ExperienceController {
     public Result<?> result(HttpServletRequest request,@PathVariable long competitionId,@PathVariable long signId,@Valid @RequestBody ResultInput input) { competitionManager(user(request),competitionId); db.update("UPDATE competition_sign SET result_rank=?,result_score=? WHERE id=? AND competition_id=?",input.rank(),input.score(),signId,competitionId); return Result.ok(null); }
     @GetMapping("/community/posts")
     public Result<?> posts() { return Result.ok(db.queryForList("""
-        SELECT p.id,p.user_id AS userId,u.nickname,p.post_type AS postType,p.content,p.image_url AS imageUrl,p.created_at AS createdAt,
+        SELECT p.id,p.user_id AS userId,u.nickname,u.avatar,p.post_type AS postType,p.content,p.image_url AS imageUrl,p.created_at AS createdAt,
           (SELECT COUNT(*) FROM community_comment c WHERE c.post_id=p.id) AS replyCount,
           (SELECT COUNT(*) FROM community_post_like l WHERE l.post_id=p.id) AS likeCount,
           (SELECT COUNT(*) FROM community_post_favorite f WHERE f.post_id=p.id) AS favoriteCount
@@ -272,7 +272,7 @@ public class ExperienceController {
     }
     @GetMapping("/community/posts/{id}/replies")
     public Result<?> replies(@PathVariable long id) {
-        return Result.ok(db.queryForList("SELECT c.id,c.user_id AS userId,u.nickname,c.content,c.created_at AS createdAt FROM community_comment c JOIN `user` u ON u.id=c.user_id WHERE c.post_id=? ORDER BY c.created_at ASC",id));
+        return Result.ok(db.queryForList("SELECT c.id,c.user_id AS userId,u.nickname,u.avatar,c.content,c.created_at AS createdAt FROM community_comment c JOIN `user` u ON u.id=c.user_id WHERE c.post_id=? ORDER BY c.created_at ASC",id));
     }
     @PostMapping("/community/posts/{id}/replies")
     public Result<?> reply(HttpServletRequest request,@PathVariable long id,@Valid @RequestBody ReplyInput input) {

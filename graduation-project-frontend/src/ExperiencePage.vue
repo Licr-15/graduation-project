@@ -1,11 +1,16 @@
 <script setup>
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { api } from './api.js'
 import { ArrowUpRight, CalendarDays, Camera, Heart, MessageCircle, Plus, Send, ShieldCheck, Star, Trash2, Trophy, Flag, BarChart3, Users } from 'lucide-vue-next'
 
 const props = defineProps({ page: String, user: Object, token: String })
 const emit = defineEmits(['login'])
 const rows = ref([])
+const competitionFormOpen = ref(false)
+const competitionFilter = ref('active')
+const communityFilter = ref('all')
+const now = ref(Date.now())
+let clock
 const points = ref({ total: 0, records: [], enrollments: [] })
 const users = ref([])
 const leaderboard = ref([])
@@ -29,6 +34,22 @@ const rule = reactive({ id: null, name: '', ruleType: 'STREAK', targetValue: 3, 
 const canManage = computed(() => ['ADMIN', 'EVENT_MANAGER'].includes(props.user?.role))
 const hasDistance = computed(() => /跑步|慢跑|散步|步行|健走|骑行|自行车|徒步/.test(checkinForm.sportType))
 const enrolled = computed(() => new Map(points.value.enrollments.map(row => [Number(row.competitionId), row.status])))
+const enrollmentApproval = computed(() => new Map(points.value.enrollments.map(row => [Number(row.competitionId), row.approvalStatus])))
+function competitionState(row) {
+  if (row.status !== 'OPEN') return 'cancelled'
+  if (now.value < new Date(row.startTime).getTime()) return 'upcoming'
+  if (now.value > new Date(row.endTime).getTime()) return 'ended'
+  return 'live'
+}
+const visibleCompetitions = computed(() => rows.value.filter(row => {
+  const state = competitionState(row)
+  return competitionFilter.value === 'all' || (competitionFilter.value === 'active' ? state === 'upcoming' || state === 'live' : competitionFilter.value === state)
+}).sort((a, b) => {
+  const priority = { live: 0, upcoming: 1, ended: 2, cancelled: 3 }
+  const difference = priority[competitionState(a)] - priority[competitionState(b)]
+  return difference || (competitionState(a) === 'upcoming' ? new Date(a.startTime) - new Date(b.startTime) : new Date(b.startTime) - new Date(a.startTime))
+}))
+const visiblePosts = computed(() => rows.value.filter(row => communityFilter.value === 'all' || (communityFilter.value === 'mine' ? Number(row.userId) === Number(props.user?.id) : row.postType === communityFilter.value)))
 function requireLogin() { if (props.token) return true; emit('login'); return false }
 function date(value) { return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '' }
 function local(value) { return value ? String(value).replace(' ', 'T').slice(0, 16) : '' }
@@ -59,8 +80,8 @@ async function run(action, success = '操作成功') {
   catch (e) { error.value = e.message }
   finally { busy.value = false }
 }
-function resetCompetition() { editId.value = null; Object.assign(competition, { title: '', sportType: '羽毛球', description: '', startTime: '', endTime: '', pointsReward: 10 }) }
-function editCompetition(row) { editId.value = row.id; Object.assign(competition, { title: row.title, sportType: row.sportType, description: row.description || '', startTime: local(row.startTime), endTime: local(row.endTime), pointsReward: row.pointsReward }); window.scrollTo({ top: 0, behavior: 'smooth' }) }
+function resetCompetition() { editId.value = null; competitionFormOpen.value = false; Object.assign(competition, { title: '', sportType: '羽毛球', description: '', startTime: '', endTime: '', pointsReward: 10 }) }
+function editCompetition(row) { editId.value = row.id; competitionFormOpen.value = true; Object.assign(competition, { title: row.title, sportType: row.sportType, description: row.description || '', startTime: local(row.startTime), endTime: local(row.endTime), pointsReward: row.pointsReward }); window.scrollTo({ top: 0, behavior: 'smooth' }) }
 async function loadParticipants(row) { try { participants.value[row.id] = await api.get(`/competitions/${row.id}/participants`) } catch (e) { error.value = e.message } }
 function approve(row, participant, status) { run(async () => { await api.put(`/competitions/${row.id}/participants/${participant.id}/approval?status=${status}`, {}) ; await loadParticipants(row) }, '审核状态已更新') }
 function saveResult(row, participant, event) { const form = event.target; run(async () => { await api.put(`/competitions/${row.id}/participants/${participant.id}/result`, { rank: Number(form.rank.value), score: Number(form.score.value) }); await loadParticipants(row) }, '成绩已保存') }
@@ -101,14 +122,19 @@ function reportPost(row) {
 }
 function saveCheckin() { run(() => api.post('/checkins', { ...checkinForm, durationMinutes: Number(checkinForm.durationMinutes), distanceKm: hasDistance.value ? Number(checkinForm.distanceKm) : 0 }), '今日运动打卡成功，奖励进度已更新') }
 function chooseCheckinImage(event) { readImage(event, value => checkinForm.imageUrl = value) }
+async function deleteReply(row, reply) {
+  await run(() => api.delete(`/community/replies/${reply.id}`), '回复已删除')
+  if (!error.value) replies.value[row.id] = await api.get(`/community/posts/${row.id}/replies`)
+}
 function saveCheckinPolicy() { run(() => api.put('/admin/checkin-policy', { minDurationMinutes: Number(checkinPolicy.minDurationMinutes) }), '有效打卡条件已保存') }
 function ruleTypeChanged() { if (rule.ruleType === 'DAILY') rule.targetValue = 1 }
 function saveRule() { const data = { ...rule, targetValue: Number(rule.targetValue), rewardPoints: Number(rule.rewardPoints) }; run(async () => { if (rule.id) await api.put(`/admin/reward-rules/${rule.id}`, data); else await api.post('/admin/reward-rules', data); Object.assign(rule, { id: null, name: '', ruleType: 'STREAK', targetValue: 3, rewardPoints: 10, badgeName: '' }) }, '奖励规则已保存') }
 function resetRule() { Object.assign(rule, { id: null, name: '', ruleType: 'STREAK', targetValue: 3, rewardPoints: 10, badgeName: '' }) }
 function editRule(item) { Object.assign(rule, item) }
-function refreshOnFocus() { if (props.page === 'points' || props.page === 'checkins') load() }
-onMounted(() => { load(); window.addEventListener('focus', refreshOnFocus) })
-onUnmounted(() => window.removeEventListener('focus', refreshOnFocus))
+function refreshOnFocus() { now.value = Date.now(); if (['points', 'checkins', 'competitions', 'community'].includes(props.page)) load() }
+watch(() => props.user?.avatar, () => { if (props.page === 'community') load() })
+onMounted(() => { load(); clock = window.setInterval(() => now.value = Date.now(), 30000); window.addEventListener('focus', refreshOnFocus) })
+onUnmounted(() => { window.clearInterval(clock); window.removeEventListener('focus', refreshOnFocus) })
 </script>
 
 <template>
@@ -116,20 +142,62 @@ onUnmounted(() => window.removeEventListener('focus', refreshOnFocus))
   <p v-if="error" class="xp-alert">{{ error }}</p><p v-if="notice" class="xp-success">{{ notice }}</p>
 
   <template v-if="page === 'competitions'">
-    <form v-if="canManage" class="xp-form" @submit.prevent="saveCompetition">
+    <div class="xp-competition-toolbar">
+      <div class="xp-competition-tabs" role="group" aria-label="赛事状态">
+        <button v-for="option in [{ value: 'active', label: '可参与' }, { value: 'all', label: '全部' }, { value: 'upcoming', label: '未开始' }, { value: 'live', label: '进行中' }, { value: 'ended', label: '已结束' }]" :key="option.value" type="button" :class="{ selected: competitionFilter === option.value }" @click="competitionFilter = option.value">{{ option.label }}</button>
+      </div>
+      <button v-if="canManage" type="button" class="primary-button" @click="competitionFormOpen ? resetCompetition() : competitionFormOpen = true"><Plus :size="16" />{{ competitionFormOpen ? '收起表单' : '发布赛事' }}</button>
+    </div>
+    <form v-if="canManage && competitionFormOpen" class="xp-form" @submit.prevent="saveCompetition">
       <div class="xp-title"><Trophy :size="20" /><h2>{{ editId ? '编辑赛事' : '发布赛事' }}</h2></div>
       <div class="xp-fields"><label>赛事名称<input v-model="competition.title" required maxlength="100" /></label><label>运动类型<input v-model="competition.sportType" required maxlength="50" /></label><label>开始时间<input v-model="competition.startTime" type="datetime-local" required /></label><label>结束时间<input v-model="competition.endTime" type="datetime-local" required /></label><label>打卡积分<input v-model.number="competition.pointsReward" type="number" min="1" max="100" required /></label></div>
       <label>赛事说明<textarea v-model="competition.description" rows="2" maxlength="1000" /></label>
       <div class="xp-actions"><button class="primary-button" :disabled="busy"><Plus :size="16" />{{ editId ? '保存修改' : '发布赛事' }}</button><button v-if="editId" type="button" class="outline-button" @click="resetCompetition">取消编辑</button></div>
     </form>
-    <div v-if="!rows.length" class="state-panel">暂无赛事</div>
-    <div v-else class="xp-list"><article v-for="row in rows" :key="row.id" class="xp-item"><div class="xp-main"><div class="xp-meta"><span class="small-tag">{{ row.sportType }}</span><span class="small-tag muted-tag">{{ row.status === 'OPEN' ? '进行中' : '已取消' }}</span><span>+{{ row.pointsReward }} 积分</span></div><h2>{{ row.title }}</h2><p>{{ row.description }}</p><div class="xp-meta"><CalendarDays :size="15" />{{ date(row.startTime) }} 至 {{ date(row.endTime) }} · {{ row.managerName }} · 已报名 {{ row.enrolledCount }} 人</div><div v-if="canManage && (user?.role === 'ADMIN' || row.managerId === user?.id)" class="xp-actions"><button class="text-button" @click="loadParticipants(row)"><Users :size="16" />报名管理</button></div><div v-if="participants[row.id]" class="xp-participants"><div v-for="participant in participants[row.id]" :key="participant.id" class="xp-participant"><span><strong>{{ participant.nickname }}</strong> <small>{{ participant.approvalStatus }}</small></span><span class="xp-actions"><button class="text-button" @click="approve(row, participant, 'APPROVED')">通过</button><button class="text-button" @click="approve(row, participant, 'REJECTED')">拒绝</button><form @submit.prevent="saveResult(row, participant, $event)"><input name="rank" type="number" min="1" placeholder="名次" /><input name="score" type="number" min="0" step="0.01" placeholder="成绩" /><button class="text-button">保存成绩</button></form></span></div></div></div><div class="xp-actions"><button v-if="row.status === 'OPEN' && token && !enrolled.get(row.id)" class="primary-button" :disabled="busy" @click="run(() => api.post(`/competitions/${row.id}/enroll`, {}), '报名成功')">报名</button><button v-else-if="row.status === 'OPEN' && token && enrolled.get(row.id) === 'ENROLLED'" class="outline-button" :disabled="busy" @click="run(() => api.delete(`/competitions/${row.id}/enroll`), '已取消报名')">取消报名</button><button v-else-if="row.status === 'OPEN' && !token" class="outline-button" @click="emit('login')">登录报名</button><span v-if="enrolled.get(row.id) === 'CHECKED'" class="small-tag">已打卡</span><label v-if="enrolled.get(row.id) === 'ENROLLED' && row.status === 'OPEN'" class="xp-upload"><Camera :size="17" />拍照打卡<input type="file" accept="image/jpeg,image/png,image/webp" @change="checkin($event, row)" /></label><button v-if="row.status === 'OPEN' && (user?.role === 'ADMIN' || row.managerId === user?.id)" class="icon-button" title="编辑赛事" @click="editCompetition(row)"><ShieldCheck :size="17" /></button><button v-if="row.status === 'OPEN' && (user?.role === 'ADMIN' || row.managerId === user?.id)" class="icon-button danger-text" title="取消赛事" @click="run(() => api.delete(`/competitions/${row.id}`), '赛事已取消')"><Trash2 :size="17" /></button></div></article></div>
+    <div v-if="!visibleCompetitions.length" class="xp-competition-empty">{{ competitionFilter === 'active' ? '暂无可参与的赛事' : '当前分类暂无赛事' }}</div>
+    <div v-else class="xp-competition-list">
+      <article v-for="row in visibleCompetitions" :key="row.id" class="xp-competition-row">
+        <div class="xp-competition-body">
+          <div class="xp-competition-tags"><span class="small-tag">{{ row.sportType }}</span><span class="small-tag" :class="{ 'muted-tag': competitionState(row) === 'ended' || competitionState(row) === 'cancelled' }">{{ { upcoming: '未开始', live: '进行中', ended: '已结束', cancelled: '已取消' }[competitionState(row)] }}</span><span>+{{ row.pointsReward }} 积分</span></div>
+          <h2>{{ row.title }}</h2><p v-if="row.description">{{ row.description }}</p>
+          <div class="xp-competition-date"><CalendarDays :size="16" />{{ date(row.startTime) }} 至 {{ date(row.endTime) }}</div>
+          <div class="xp-competition-detail">{{ row.managerName }} · 已报名 {{ row.enrolledCount }} 人</div>
+          <div v-if="canManage && (user?.role === 'ADMIN' || row.managerId === user?.id)" class="xp-competition-manage"><button class="text-button" @click="loadParticipants(row)"><Users :size="16" />报名管理</button></div>
+          <div v-if="participants[row.id]" class="xp-participants"><div v-for="participant in participants[row.id]" :key="participant.id" class="xp-participant"><span><strong>{{ participant.nickname }}</strong> <small>{{ participant.approvalStatus }}</small></span><span class="xp-actions"><button class="text-button" @click="approve(row, participant, 'APPROVED')">通过</button><button class="text-button" @click="approve(row, participant, 'REJECTED')">拒绝</button><form @submit.prevent="saveResult(row, participant, $event)"><input name="rank" type="number" min="1" placeholder="名次" /><input name="score" type="number" min="0" step="0.01" placeholder="成绩" /><button class="text-button">保存成绩</button></form></span></div></div>
+        </div>
+        <div class="xp-competition-controls">
+          <button v-if="competitionState(row) === 'upcoming' && token && !enrolled.get(row.id)" class="primary-button" :disabled="busy" @click="run(() => api.post(`/competitions/${row.id}/enroll`, {}), '报名成功')">报名</button>
+          <button v-else-if="competitionState(row) === 'upcoming' && token && enrolled.get(row.id) === 'ENROLLED'" class="outline-button" :disabled="busy" @click="run(() => api.delete(`/competitions/${row.id}/enroll`), '已取消报名')">取消报名</button>
+          <button v-else-if="competitionState(row) === 'upcoming' && !token" class="outline-button" @click="emit('login')">登录报名</button>
+          <span v-if="enrolled.get(row.id) === 'CHECKED'" class="small-tag">已打卡</span>
+          <label v-else-if="competitionState(row) === 'live' && enrolled.get(row.id) === 'ENROLLED' && enrollmentApproval.get(row.id) !== 'REJECTED'" class="xp-upload"><Camera :size="17" />拍照打卡<input type="file" accept="image/jpeg,image/png,image/webp" @change="checkin($event, row)" /></label>
+          <span v-if="competitionState(row) === 'ended' && enrolled.get(row.id) !== 'CHECKED'" class="xp-competition-hint">已结束，无法打卡</span>
+          <span v-else-if="competitionState(row) === 'live' && enrollmentApproval.get(row.id) === 'REJECTED'" class="xp-competition-hint">报名未通过，无法打卡</span>
+          <span v-else-if="competitionState(row) === 'live' && !enrolled.get(row.id)" class="xp-competition-hint">报名已截止</span>
+          <button v-if="row.status === 'OPEN' && (user?.role === 'ADMIN' || row.managerId === user?.id)" class="icon-button" title="编辑赛事" @click="editCompetition(row)"><ShieldCheck :size="17" /></button>
+          <button v-if="row.status === 'OPEN' && (user?.role === 'ADMIN' || row.managerId === user?.id)" class="icon-button danger-text" title="取消赛事" @click="run(() => api.delete(`/competitions/${row.id}`), '赛事已取消')"><Trash2 :size="17" /></button>
+        </div>
+      </article>
+    </div>
   </template>
 
   <template v-else-if="page === 'community'">
-    <form v-if="token" class="xp-form" @submit.prevent="savePost"><div class="xp-title"><MessageCircle :size="20" /><h2>分享运动时刻</h2></div><div class="xp-actions"><label><input v-model="post.postType" type="radio" value="DYNAMIC" />运动动态</label><label><input v-model="post.postType" type="radio" value="TOPIC" />论坛话题</label></div><textarea v-model="post.content" required maxlength="1000" rows="3" placeholder="记录今天的运动，或发起一个话题" /><div class="xp-actions"><label class="xp-upload"><Camera :size="17" />添加照片<input type="file" accept="image/jpeg,image/png,image/webp" @change="readImage($event, value => post.imageUrl = value)" /></label><span v-if="post.imageUrl">已选照片</span><button class="primary-button" :disabled="busy"><Send :size="16" />发布</button></div><img v-if="post.imageUrl" class="xp-preview" :src="post.imageUrl" alt="照片预览" /></form>
+    <form v-if="token" class="xp-community-composer" @submit.prevent="savePost">
+      <div class="xp-community-author"><span class="xp-community-avatar"><img v-if="user?.avatar" :src="user.avatar" alt="" /><span v-else>{{ user?.nickname?.slice(0, 1) || '我' }}</span></span><strong>{{ user?.nickname || '我' }}</strong></div>
+      <div class="xp-community-modes" role="group" aria-label="发布类型"><button type="button" :class="{ selected: post.postType === 'DYNAMIC' }" @click="post.postType = 'DYNAMIC'">运动动态</button><button type="button" :class="{ selected: post.postType === 'TOPIC' }" @click="post.postType = 'TOPIC'">论坛话题</button></div>
+      <textarea v-model="post.content" required maxlength="1000" rows="3" :placeholder="post.postType === 'TOPIC' ? '你想和大家讨论什么运动话题？' : '今天有什么运动新鲜事？'" />
+      <div v-if="post.imageUrl" class="xp-community-preview"><img :src="post.imageUrl" alt="待发布照片" /><button type="button" class="icon-button" title="移除照片" @click="post.imageUrl = ''"><Trash2 :size="16" /></button></div>
+      <div class="xp-community-compose-actions"><label class="xp-upload"><Camera :size="17" />{{ post.imageUrl ? '更换照片' : '添加照片' }}<input type="file" accept="image/jpeg,image/png,image/webp" @change="readImage($event, value => post.imageUrl = value)" /></label><span>{{ post.content.length }}/1000</span><button class="primary-button" :disabled="busy || !post.content.trim()"><Send :size="16" />发布</button></div>
+    </form>
     <button v-else class="outline-button" @click="emit('login')">登录后分享动态</button>
-    <div v-if="!rows.length" class="state-panel">暂无社区内容</div><div v-else class="xp-list"><article v-for="row in rows" :key="row.id" class="xp-item"><div class="xp-main"><div class="xp-meta"><span class="small-tag">{{ row.postType === 'TOPIC' ? '论坛话题' : '运动动态' }}</span>{{ row.nickname }} · {{ date(row.createdAt) }}</div><p class="xp-content">{{ row.content }}</p><img v-if="row.imageUrl" class="xp-post-image" :src="row.imageUrl" alt="动态照片" /><div class="xp-actions"><button class="text-button" @click="togglePost(row, 'like')"><Heart :size="16" />{{ row.likeCount || 0 }}</button><button class="text-button" @click="togglePost(row, 'favorite')"><Star :size="16" />{{ row.favoriteCount || 0 }}</button><button class="text-button" @click="openReplies(row)"><MessageCircle :size="16" />{{ row.replyCount }} 条回复</button><button v-if="token && user?.id !== row.userId" class="icon-button" title="举报动态" @click="reportPost(row)"><Flag :size="16" /></button><button v-if="user?.id === row.userId || user?.role === 'ADMIN'" class="icon-button danger-text" title="删除动态" @click="run(() => api.delete(`/community/posts/${row.id}`), '动态已删除')"><Trash2 :size="16" /></button></div><div v-if="activePost === row.id" class="xp-replies"><div v-for="reply in replies[row.id] || []" :key="reply.id" class="xp-reply"><strong>{{ reply.nickname }}</strong> {{ reply.content }} <small>{{ date(reply.createdAt) }}</small><button v-if="user?.id === reply.userId || user?.role === 'ADMIN'" class="icon-button danger-text" title="删除回复" @click="run(async () => { await api.delete(`/community/replies/${reply.id}`); replies[row.id] = await api.get(`/api/community/posts/${row.id}/replies`) }, '回复已删除')"><Trash2 :size="14" /></button></div><form v-if="token" class="xp-actions" @submit.prevent="sendReply(row)"><input v-model="replyText" required maxlength="500" placeholder="输入回复" /><button class="primary-button" :disabled="busy"><Send :size="16" />回复</button></form><button v-else class="text-button" @click="emit('login')">登录后回复</button></div></div></article></div>
+    <div class="xp-community-toolbar"><h2>社区动态</h2><div class="xp-community-tabs" role="group" aria-label="内容筛选"><button v-for="option in [{ value: 'all', label: '全部' }, { value: 'DYNAMIC', label: '运动动态' }, { value: 'TOPIC', label: '论坛话题' }, ...(token ? [{ value: 'mine', label: '我的' }] : [])]" :key="option.value" type="button" :class="{ selected: communityFilter === option.value }" @click="communityFilter = option.value">{{ option.label }}</button></div></div>
+    <div v-if="!visiblePosts.length" class="xp-community-empty">{{ rows.length ? '这个分类还没有内容' : '暂无社区内容' }}</div>
+    <div v-else class="xp-community-feed"><article v-for="row in visiblePosts" :key="row.id" class="xp-community-post">
+      <div class="xp-community-head"><span class="xp-community-avatar"><img v-if="row.avatar" :src="row.avatar" alt="" /><span v-else>{{ row.nickname?.slice(0, 1) || '同' }}</span></span><div><strong>{{ row.nickname }}</strong><small>{{ date(row.createdAt) }}</small></div><span class="small-tag">{{ row.postType === 'TOPIC' ? '论坛话题' : '运动动态' }}</span></div>
+      <p class="xp-community-content">{{ row.content }}</p><img v-if="row.imageUrl" class="xp-community-image" :src="row.imageUrl" alt="动态照片" />
+      <div class="xp-community-interactions"><button type="button" @click="togglePost(row, 'like')"><Heart :size="17" />赞 {{ row.likeCount || 0 }}</button><button type="button" @click="openReplies(row)"><MessageCircle :size="17" />回复 {{ row.replyCount || 0 }}</button><button type="button" @click="togglePost(row, 'favorite')"><Star :size="17" />收藏 {{ row.favoriteCount || 0 }}</button><span></span><button v-if="token && user?.id !== row.userId" type="button" title="举报动态" aria-label="举报动态" @click="reportPost(row)"><Flag :size="16" /></button><button v-if="user?.id === row.userId || user?.role === 'ADMIN'" type="button" title="删除动态" aria-label="删除动态" @click="run(() => api.delete(`/community/posts/${row.id}`), '动态已删除')"><Trash2 :size="16" /></button></div>
+      <div v-if="activePost === row.id" class="xp-community-replies"><div v-if="!(replies[row.id] || []).length" class="xp-community-no-replies">还没有回复</div><div v-for="reply in replies[row.id] || []" :key="reply.id" class="xp-community-reply"><span class="xp-community-avatar"><img v-if="reply.avatar" :src="reply.avatar" alt="" /><span v-else>{{ reply.nickname?.slice(0, 1) || '同' }}</span></span><div><strong>{{ reply.nickname }}</strong><p>{{ reply.content }}</p><small>{{ date(reply.createdAt) }}</small></div><button v-if="user?.id === reply.userId || user?.role === 'ADMIN'" type="button" class="icon-button danger-text" title="删除回复" @click="deleteReply(row, reply)"><Trash2 :size="14" /></button></div><form v-if="token" class="xp-community-reply-form" @submit.prevent="sendReply(row)"><input v-model="replyText" required maxlength="500" placeholder="写一条回复" /><button class="primary-button" :disabled="busy"><Send :size="16" />回复</button></form><button v-else class="text-button" @click="emit('login')">登录后回复</button></div>
+    </article></div>
   </template>
 
   <template v-else-if="page === 'points'">
