@@ -84,7 +84,7 @@ public class ExperienceController {
         if ("DAILY".equals(input.ruleType()) && input.targetValue() != 1) throw new BusinessException("每日打卡规则的达成目标必须为 1");
     }
     private int minimumCheckinMinutes() {
-        return db.queryForObject("SELECT min_duration_minutes FROM sport_checkin_policy WHERE id=1", Integer.class);
+        return db.queryForObject("SELECT min_duration_minutes FROM reward_rule ORDER BY id LIMIT 1", Integer.class);
     }
     private boolean distanceSport(String sportType) {
         return sportType.matches(".*(跑步|慢跑|散步|步行|健走|骑行|自行车|徒步).*");
@@ -130,9 +130,9 @@ public class ExperienceController {
     @GetMapping("/admin/checkin-policy")
     public Result<?> checkinPolicy(HttpServletRequest request) { admin(user(request)); return Result.ok(Map.of("minDurationMinutes",minimumCheckinMinutes())); }
     @PutMapping("/admin/checkin-policy")
-    public Result<?> updateCheckinPolicy(HttpServletRequest request,@Valid @RequestBody CheckinPolicyInput input) { admin(user(request)); db.update("UPDATE sport_checkin_policy SET min_duration_minutes=? WHERE id=1",input.minDurationMinutes()); return Result.ok(null); }
+    public Result<?> updateCheckinPolicy(HttpServletRequest request,@Valid @RequestBody CheckinPolicyInput input) { admin(user(request)); db.update("UPDATE reward_rule SET min_duration_minutes=?",input.minDurationMinutes()); return Result.ok(null); }
     @PostMapping("/admin/reward-rules")
-    public Result<?> createRule(HttpServletRequest request,@Valid @RequestBody RuleInput input) { CurrentUser u=user(request); admin(u); validateRule(input); long id=insert("INSERT INTO reward_rule(name,rule_type,target_value,reward_points,badge_name,created_by) VALUES(?,?,?,?,?,?)",input.name(),input.ruleType(),input.targetValue(),input.rewardPoints(),input.badgeName(),u.id()); rewards.reconcileDailyRule(id); return Result.ok(id); }
+    public Result<?> createRule(HttpServletRequest request,@Valid @RequestBody RuleInput input) { CurrentUser u=user(request); admin(u); validateRule(input); long id=insert("INSERT INTO reward_rule(name,rule_type,target_value,reward_points,badge_name,created_by,min_duration_minutes) VALUES(?,?,?,?,?,?,?)",input.name(),input.ruleType(),input.targetValue(),input.rewardPoints(),input.badgeName(),u.id(),minimumCheckinMinutes()); rewards.reconcileDailyRule(id); return Result.ok(id); }
     @PutMapping("/admin/reward-rules/{id}")
     public Result<?> updateRule(HttpServletRequest request,@PathVariable long id,@Valid @RequestBody RuleInput input) { admin(user(request)); validateRule(input); db.update("UPDATE reward_rule SET name=?,rule_type=?,target_value=?,reward_points=?,badge_name=? WHERE id=?",input.name(),input.ruleType(),input.targetValue(),input.rewardPoints(),input.badgeName(),id); rewards.reconcileDailyRule(id); return Result.ok(null); }
     @DeleteMapping("/admin/reward-rules/{id}")
@@ -219,7 +219,7 @@ public class ExperienceController {
         return result;
     }
     @GetMapping("/points/leaderboard")
-    public Result<?> leaderboard() { return Result.ok(db.queryForList("SELECT u.id,u.nickname,COALESCE(SUM(p.points),0) AS totalPoints,COUNT(p.id) AS checkinCount FROM `user` u LEFT JOIN point_ledger p ON p.user_id=u.id WHERE u.status=1 GROUP BY u.id,u.nickname ORDER BY totalPoints DESC,u.id ASC LIMIT 50")); }
+    public Result<?> leaderboard() { return Result.ok(db.queryForList("SELECT u.id,u.nickname,COALESCE(SUM(p.points),0) AS totalPoints,COUNT(p.id) AS checkinCount FROM `user` u LEFT JOIN point_ledger p ON p.user_id=u.id WHERE u.status=1 AND u.role='STUDENT' GROUP BY u.id,u.nickname ORDER BY totalPoints DESC,u.id ASC LIMIT 50")); }
     @GetMapping("/stats/mine")
     public Result<?> stats(HttpServletRequest request) {
         long id=user(request).id();
@@ -251,9 +251,9 @@ public class ExperienceController {
     public Result<?> posts() { return Result.ok(db.queryForList("""
         SELECT p.id,p.user_id AS userId,u.nickname,u.avatar,p.post_type AS postType,p.content,p.image_url AS imageUrl,p.created_at AS createdAt,
           (SELECT COUNT(*) FROM community_comment c WHERE c.post_id=p.id) AS replyCount,
-          (SELECT COUNT(*) FROM community_post_like l WHERE l.post_id=p.id) AS likeCount,
-          (SELECT COUNT(*) FROM community_post_favorite f WHERE f.post_id=p.id) AS favoriteCount
-        FROM community_post p JOIN `user` u ON u.id=p.user_id ORDER BY p.created_at DESC LIMIT 100
+          (SELECT COUNT(*) FROM community_interaction i WHERE i.post_id=p.id AND i.interaction_type='LIKE') AS likeCount,
+          (SELECT COUNT(*) FROM community_interaction i WHERE i.post_id=p.id AND i.interaction_type='FAVORITE') AS favoriteCount
+        FROM community_post p JOIN `user` u ON u.id=p.user_id WHERE p.post_type<>'NOTICE' ORDER BY p.created_at DESC LIMIT 100
         """)); }
     @PostMapping("/community/posts")
     public Result<?> createPost(HttpServletRequest request,@Valid @RequestBody PostInput input) {
@@ -287,16 +287,16 @@ public class ExperienceController {
         return Result.ok(null);
     }
     @PostMapping("/community/posts/{id}/like")
-    public Result<?> like(HttpServletRequest request,@PathVariable long id) { toggle("community_post_like",id,user(request).id()); return Result.ok(null); }
+    public Result<?> like(HttpServletRequest request,@PathVariable long id) { toggle(id,user(request).id(),"LIKE"); return Result.ok(null); }
     @PostMapping("/community/posts/{id}/favorite")
-    public Result<?> favorite(HttpServletRequest request,@PathVariable long id) { toggle("community_post_favorite",id,user(request).id()); return Result.ok(null); }
-    private void toggle(String table,long postId,long userId) { int count=db.queryForObject("SELECT COUNT(*) FROM "+table+" WHERE post_id=? AND user_id=?",Integer.class,postId,userId); if(count==0) db.update("INSERT INTO "+table+"(post_id,user_id) VALUES(?,?)",postId,userId); else db.update("DELETE FROM "+table+" WHERE post_id=? AND user_id=?",postId,userId); }
+    public Result<?> favorite(HttpServletRequest request,@PathVariable long id) { toggle(id,user(request).id(),"FAVORITE"); return Result.ok(null); }
+    private void toggle(long postId,long userId,String type) { int count=db.queryForObject("SELECT COUNT(*) FROM community_interaction WHERE post_id=? AND user_id=? AND interaction_type=?",Integer.class,postId,userId,type); if(count==0) db.update("INSERT INTO community_interaction(post_id,user_id,interaction_type) VALUES(?,?,?)",postId,userId,type); else db.update("DELETE FROM community_interaction WHERE post_id=? AND user_id=? AND interaction_type=?",postId,userId,type); }
     @PostMapping("/community/posts/{id}/report")
-    public Result<?> report(HttpServletRequest request,@PathVariable long id,@Valid @RequestBody ReportInput input) { try { db.update("INSERT INTO community_report(post_id,user_id,reason) VALUES(?,?,?)",id,user(request).id(),input.reason()); } catch(DuplicateKeyException e) { throw new BusinessException("你已经举报过这条动态"); } return Result.ok(null); }
+    public Result<?> report(HttpServletRequest request,@PathVariable long id,@Valid @RequestBody ReportInput input) { try { db.update("INSERT INTO community_interaction(post_id,user_id,interaction_type,reason) VALUES(?,?,'REPORT',?)",id,user(request).id(),input.reason()); } catch(DuplicateKeyException e) { throw new BusinessException("你已经举报过这条动态"); } return Result.ok(null); }
     @GetMapping("/admin/community/reports")
-    public Result<?> reports(HttpServletRequest request) { if(!"ADMIN".equals(user(request).role())) throw new BusinessException("需要管理员权限"); return Result.ok(db.queryForList("SELECT r.id,r.post_id AS postId,r.reason,r.status,r.created_at AS createdAt,u.nickname,p.content FROM community_report r JOIN `user` u ON u.id=r.user_id JOIN community_post p ON p.id=r.post_id ORDER BY r.created_at DESC")); }
+    public Result<?> reports(HttpServletRequest request) { if(!"ADMIN".equals(user(request).role())) throw new BusinessException("需要管理员权限"); return Result.ok(db.queryForList("SELECT i.id,i.post_id AS postId,i.reason,i.status,i.created_at AS createdAt,u.nickname,p.content FROM community_interaction i JOIN `user` u ON u.id=i.user_id JOIN community_post p ON p.id=i.post_id WHERE i.interaction_type='REPORT' ORDER BY i.created_at DESC")); }
     @PutMapping("/admin/community/reports/{id}")
-    public Result<?> reportStatus(HttpServletRequest request,@PathVariable long id,@RequestParam String status) { if(!"ADMIN".equals(user(request).role())) throw new BusinessException("需要管理员权限"); if(!List.of("PENDING","RESOLVED","IGNORED").contains(status)) throw new BusinessException("举报状态无效"); db.update("UPDATE community_report SET status=? WHERE id=?",status,id); return Result.ok(null); }
+    public Result<?> reportStatus(HttpServletRequest request,@PathVariable long id,@RequestParam String status) { if(!"ADMIN".equals(user(request).role())) throw new BusinessException("需要管理员权限"); if(!List.of("PENDING","RESOLVED","IGNORED").contains(status)) throw new BusinessException("举报状态无效"); db.update("UPDATE community_interaction SET status=? WHERE id=? AND interaction_type='REPORT'",status,id); return Result.ok(null); }
     @GetMapping("/admin/users")
     public Result<?> users() { return Result.ok(db.queryForList("SELECT id,username,nickname,role FROM `user` ORDER BY id")); }
     @PutMapping("/admin/users/{id}/role")

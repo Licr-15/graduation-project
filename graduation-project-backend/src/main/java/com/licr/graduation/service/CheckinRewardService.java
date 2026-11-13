@@ -30,7 +30,7 @@ public class CheckinRewardService implements ApplicationRunner {
         List<Map<String,Object>> rules=db.queryForList("SELECT * FROM reward_rule WHERE id=? AND status=1 AND rule_type='DAILY' AND target_value=1",ruleId);
         if (rules.isEmpty()) return;
         Map<String,Object> rule=rules.get(0);
-        int minimum=db.queryForObject("SELECT min_duration_minutes FROM sport_checkin_policy WHERE id=1",Integer.class);
+        int minimum=db.queryForObject("SELECT min_duration_minutes FROM reward_rule ORDER BY id LIMIT 1",Integer.class);
         List<Map<String,Object>> checkins=db.queryForList("SELECT user_id,checkin_date FROM sport_checkin WHERE checkin_date>=DATE(?) AND duration_minutes>=? ORDER BY id",
             rule.get("created_at"),minimum);
         for (Map<String,Object> checkin : checkins) {
