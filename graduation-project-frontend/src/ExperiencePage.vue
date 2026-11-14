@@ -31,7 +31,8 @@ const competition = reactive({ title: '', sportType: '羽毛球', description: '
 const post = reactive({ postType: 'DYNAMIC', content: '', imageUrl: '' })
 const checkinForm = reactive({ sportType: '羽毛球', durationMinutes: 30, distanceKm: 0, imageUrl: '', note: '' })
 const rule = reactive({ id: null, name: '', ruleType: 'STREAK', targetValue: 3, rewardPoints: 10, badgeName: '' })
-const canManage = computed(() => ['ADMIN', 'EVENT_MANAGER'].includes(props.user?.role))
+const canManage = computed(() => props.user?.role === 'ADMIN')
+const isStudent = computed(() => props.user?.role === 'STUDENT')
 const hasDistance = computed(() => /跑步|慢跑|散步|步行|健走|骑行|自行车|徒步/.test(checkinForm.sportType))
 const enrolled = computed(() => new Map(points.value.enrollments.map(row => [Number(row.competitionId), row.status])))
 const enrollmentApproval = computed(() => new Map(points.value.enrollments.map(row => [Number(row.competitionId), row.approvalStatus])))
@@ -166,14 +167,14 @@ onUnmounted(() => { window.clearInterval(clock); window.removeEventListener('foc
           <div v-if="participants[row.id]" class="xp-participants"><div v-for="participant in participants[row.id]" :key="participant.id" class="xp-participant"><span><strong>{{ participant.nickname }}</strong> <small>{{ participant.approvalStatus }}</small></span><span class="xp-actions"><button class="text-button" @click="approve(row, participant, 'APPROVED')">通过</button><button class="text-button" @click="approve(row, participant, 'REJECTED')">拒绝</button><form @submit.prevent="saveResult(row, participant, $event)"><input name="rank" type="number" min="1" placeholder="名次" /><input name="score" type="number" min="0" step="0.01" placeholder="成绩" /><button class="text-button">保存成绩</button></form></span></div></div>
         </div>
         <div class="xp-competition-controls">
-          <button v-if="competitionState(row) === 'upcoming' && token && !enrolled.get(row.id)" class="primary-button" :disabled="busy" @click="run(() => api.post(`/competitions/${row.id}/enroll`, {}), '报名成功')">报名</button>
-          <button v-else-if="competitionState(row) === 'upcoming' && token && enrolled.get(row.id) === 'ENROLLED'" class="outline-button" :disabled="busy" @click="run(() => api.delete(`/competitions/${row.id}/enroll`), '已取消报名')">取消报名</button>
-          <button v-else-if="competitionState(row) === 'upcoming' && !token" class="outline-button" @click="emit('login')">登录报名</button>
+          <button v-if="isStudent && competitionState(row) === 'upcoming' && token && !enrolled.get(row.id)" class="primary-button" :disabled="busy" @click="run(() => api.post(`/competitions/${row.id}/enroll`, {}), '报名成功')">报名</button>
+          <button v-else-if="isStudent && competitionState(row) === 'upcoming' && token && enrolled.get(row.id) === 'ENROLLED'" class="outline-button" :disabled="busy" @click="run(() => api.delete(`/competitions/${row.id}/enroll`), '已取消报名')">取消报名</button>
+          <button v-else-if="!token && competitionState(row) === 'upcoming'" class="outline-button" @click="emit('login')">登录报名</button>
           <span v-if="enrolled.get(row.id) === 'CHECKED'" class="small-tag">已打卡</span>
-          <label v-else-if="competitionState(row) === 'live' && enrolled.get(row.id) === 'ENROLLED' && enrollmentApproval.get(row.id) !== 'REJECTED'" class="xp-upload"><Camera :size="17" />拍照打卡<input type="file" accept="image/jpeg,image/png,image/webp" @change="checkin($event, row)" /></label>
+          <label v-else-if="isStudent && competitionState(row) === 'live' && enrolled.get(row.id) === 'ENROLLED' && enrollmentApproval.get(row.id) !== 'REJECTED'" class="xp-upload"><Camera :size="17" />拍照打卡<input type="file" accept="image/jpeg,image/png,image/webp" @change="checkin($event, row)" /></label>
           <span v-if="competitionState(row) === 'ended' && enrolled.get(row.id) !== 'CHECKED'" class="xp-competition-hint">已结束，无法打卡</span>
           <span v-else-if="competitionState(row) === 'live' && enrollmentApproval.get(row.id) === 'REJECTED'" class="xp-competition-hint">报名未通过，无法打卡</span>
-          <span v-else-if="competitionState(row) === 'live' && !enrolled.get(row.id)" class="xp-competition-hint">报名已截止</span>
+          <span v-else-if="isStudent && competitionState(row) === 'live' && !enrolled.get(row.id)" class="xp-competition-hint">报名已截止</span>
           <button v-if="row.status === 'OPEN' && (user?.role === 'ADMIN' || row.managerId === user?.id)" class="icon-button" title="编辑赛事" @click="editCompetition(row)"><ShieldCheck :size="17" /></button>
           <button v-if="row.status === 'OPEN' && (user?.role === 'ADMIN' || row.managerId === user?.id)" class="icon-button danger-text" title="取消赛事" @click="run(() => api.delete(`/competitions/${row.id}`), '赛事已取消')"><Trash2 :size="17" /></button>
         </div>
@@ -287,5 +288,5 @@ onUnmounted(() => { window.clearInterval(clock); window.removeEventListener('foc
     </div>
   </template>
 
-  <template v-else-if="page === 'admin-users'"><div class="xp-list"><div v-for="member in users" :key="member.id" class="xp-item xp-record"><div><strong>{{ member.nickname }}</strong><small>{{ member.username }}</small></div><span v-if="member.role === 'ADMIN'">系统管理员</span><select v-else :value="member.role" :disabled="busy" @change="run(() => api.put(`/admin/users/${member.id}/role`, { role: $event.target.value }), '角色已更新')"><option value="STUDENT">普通用户</option><option value="EVENT_MANAGER">赛事管理员</option></select></div></div></template>
+  <template v-else-if="page === 'admin-users'"><div class="xp-list"><div v-for="member in users" :key="member.id" class="xp-item xp-record"><div><strong>{{ member.nickname }}</strong><small>{{ member.username }}</small></div><span v-if="member.role === 'ADMIN'">系统管理员</span><select v-else :value="member.role" :disabled="busy" @change="run(() => api.put(`/admin/users/${member.id}/role`, { role: $event.target.value }), '角色已更新')"><option value="STUDENT">普通用户</option></select></div></div></template>
 </template>

@@ -2,7 +2,7 @@ USE lvyin_sport;
 
 -- Local demo only. The event manager account uses password 123456.
 INSERT INTO `user` (username,password,nickname,role)
-SELECT 'demo_event','$2a$10$.NC4Kg9UCmcXC4yVmBeNY.50vWR4XmPxPclpcdRdLiQThL0ZNq9WO','赛事管理员','EVENT_MANAGER'
+SELECT 'demo_event','$2a$10$.NC4Kg9UCmcXC4yVmBeNY.50vWR4XmPxPclpcdRdLiQThL0ZNq9WO','系统管理员','ADMIN'
 WHERE NOT EXISTS (SELECT 1 FROM `user` WHERE username='demo_event');
 
 INSERT INTO sport_competition(title,sport_type,description,start_time,end_time,points_reward,manager_id)

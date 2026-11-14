@@ -34,7 +34,7 @@ public class ExperienceController {
     public record Proof(@NotBlank String imageUrl) {}
     public record PostInput(@NotBlank @Size(max=1000) String content, @Pattern(regexp="DYNAMIC|TOPIC") String postType, String imageUrl) {}
     public record ReplyInput(@NotBlank @Size(max=500) String content) {}
-    public record RoleInput(@Pattern(regexp="STUDENT|EVENT_MANAGER") String role) {}
+    public record RoleInput(@Pattern(regexp="STUDENT") String role) {}
     public record ResultInput(@Min(1) @Max(9999) int rank, @DecimalMin("0") @DecimalMax("10000") double score) {}
     public record ReportInput(@NotBlank @Size(max=255) String reason) {}
     public record CheckinInput(@NotBlank @Size(max=50) String sportType, @Min(0) @Max(1440) int durationMinutes, @DecimalMin("0") @DecimalMax("999") double distanceKm, String imageUrl, @Size(max=500) String note) {}
@@ -44,7 +44,7 @@ public class ExperienceController {
     private CurrentUser user(HttpServletRequest request) { return AuthController.user(request); }
     private void manager(CurrentUser user) {
         String role = db.queryForObject("SELECT role FROM `user` WHERE id=? AND status=1", String.class, user.id());
-        if (!"ADMIN".equals(role) && !"EVENT_MANAGER".equals(role)) throw new BusinessException("需要赛事管理员权限");
+        if (!"ADMIN".equals(role)) throw new BusinessException("需要系统管理员权限");
     }
     private void ownCompetition(CurrentUser user, long id) {
         manager(user);

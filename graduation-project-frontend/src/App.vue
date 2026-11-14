@@ -43,6 +43,7 @@ const router = useRouter();
 const auth = useAuthStore();
 const page = computed(() => route.name);
 const isAdmin = computed(() => auth.user?.role === "ADMIN");
+const isStudent = computed(() => auth.user?.role === "STUDENT");
 const activities = ref([]);
 const created = ref([]);
 const joined = ref([]);
@@ -616,35 +617,36 @@ onUnmounted(() => {
         ><span>绿茵结伴</span></RouterLink
       >
       <div class="side-label">校园运动</div>
-      <RouterLink
+      <RouterLink v-if="!isAdmin"
         to="/activities"
         class="side-link"
         :class="{ current: page === 'activities' || page === 'detail' }"
         ><Compass :size="18" />发现活动</RouterLink
       >
-      <RouterLink
+      <RouterLink v-if="!isAdmin"
         to="/mine"
         class="side-link"
         :class="{ current: page === 'mine' }"
         ><CalendarDays :size="18" />我的活动</RouterLink
       >
-      <RouterLink
+      <RouterLink v-if="!isAdmin"
         to="/venues"
         class="side-link"
         :class="{ current: page === 'venues' }"
         ><MapPin :size="18" />运动场地</RouterLink
       >
-      <RouterLink
+      <RouterLink v-if="!isAdmin"
         to="/notices"
         class="side-link"
         :class="{ current: page === 'notices' }"
         ><Megaphone :size="18" />校园公告</RouterLink
       >
-      <RouterLink to="/competitions" class="side-link" :class="{ current: page === 'competitions' }"><Activity :size="18" />校园赛事</RouterLink>
-      <RouterLink to="/community" class="side-link" :class="{ current: page === 'community' }"><MessageCircle :size="18" />运动社区</RouterLink>
-      <RouterLink to="/points" class="side-link" :class="{ current: page === 'points' }"><Check :size="18" />我的积分</RouterLink>
-      <RouterLink to="/checkins" class="side-link" :class="{ current: page === 'checkins' }"><CalendarDays :size="18" />每日打卡</RouterLink>
+      <RouterLink v-if="!isAdmin" to="/competitions" class="side-link" :class="{ current: page === 'competitions' }"><Activity :size="18" />校园赛事</RouterLink>
+      <RouterLink v-if="!isAdmin" to="/community" class="side-link" :class="{ current: page === 'community' }"><MessageCircle :size="18" />运动社区</RouterLink>
+      <RouterLink v-if="!isAdmin" to="/points" class="side-link" :class="{ current: page === 'points' }"><Check :size="18" />我的积分</RouterLink>
+      <RouterLink v-if="!isAdmin" to="/checkins" class="side-link" :class="{ current: page === 'checkins' }"><CalendarDays :size="18" />每日打卡</RouterLink>
       <div v-if="isAdmin" class="side-label section-gap">管理员</div>
+      <RouterLink v-if="isAdmin" to="/competitions" class="side-link" :class="{ current: page === 'competitions' }"><Trophy :size="18" />赛事管理</RouterLink>
       <RouterLink
         v-if="isAdmin"
         to="/admin/venues"
