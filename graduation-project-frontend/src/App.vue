@@ -57,6 +57,7 @@ const toast = ref("");
 const error = ref("");
 const sidebarOpen = ref(false);
 const authOpen = ref(false);
+const accountMenuOpen = ref(false);
 const authMode = ref("login");
 const activityOpen = ref(false);
 const venueOpen = ref(false);
@@ -479,6 +480,7 @@ async function submitAuth() {
   }
 }
 function logout() {
+  accountMenuOpen.value = false;
   auth.logout();
   created.value = [];
   joined.value = [];
@@ -585,6 +587,20 @@ onUnmounted(() => {
   window.removeEventListener("lvyin-unauthorized", unauthorized);
   clearTimeout(toastTimer);
 });
+function onDocumentPointerDown(event) {
+  if (!event.target.closest?.(".account-menu")) accountMenuOpen.value = false;
+}
+function onDocumentKeydown(event) {
+  if (event.key === "Escape") accountMenuOpen.value = false;
+}
+onMounted(() => {
+  document.addEventListener("pointerdown", onDocumentPointerDown);
+  document.addEventListener("keydown", onDocumentKeydown);
+});
+onUnmounted(() => {
+  document.removeEventListener("pointerdown", onDocumentPointerDown);
+  document.removeEventListener("keydown", onDocumentKeydown);
+});
 </script>
 
 <template>
@@ -672,17 +688,34 @@ onUnmounted(() => {
         </div>
         <div class="top-actions">
           <span class="top-date">校园运动结伴服务平台</span
-          ><button
-            v-if="auth.token"
-            class="user-button"
-            @click="router.push('/profile')"
-          >
-            <span class="user-avatar">
-              <img v-if="auth.user?.avatar" :src="auth.user.avatar" alt="用户头像" />
-              <span v-else>{{ auth.user?.nickname?.slice(0, 1) || "同" }}</span>
-            </span
-            ><span>{{ auth.user?.nickname || "同学" }}</span></button
-          ><button v-else class="outline-button" @click="authOpen = true">
+          ><div v-if="auth.token" class="account-menu">
+            <button
+              class="user-button"
+              type="button"
+              :aria-expanded="accountMenuOpen"
+              aria-label="打开账号菜单"
+              @click="accountMenuOpen = !accountMenuOpen"
+            >
+              <span class="user-avatar">
+                <img v-if="auth.user?.avatar" :src="auth.user.avatar" alt="" />
+                <span v-else>{{ auth.user?.nickname?.slice(0, 1) || "同" }}</span>
+              </span>
+              <span class="user-name">{{ auth.user?.nickname || "同学" }}</span>
+              <ChevronRight :size="14" class="account-chevron" />
+            </button>
+            <div v-if="accountMenuOpen" class="account-dropdown" role="menu">
+              <div class="account-dropdown-user">
+                <strong>{{ auth.user?.nickname || "同学" }}</strong>
+                <small>{{ auth.user?.username || "已登录" }}</small>
+              </div>
+              <RouterLink to="/profile" role="menuitem" @click="accountMenuOpen = false">
+                <UserRound :size="16" />个人资料
+              </RouterLink>
+              <button type="button" role="menuitem" class="account-logout" @click="logout">
+                <LogOut :size="16" />退出登录
+              </button>
+            </div>
+          </div><button v-else class="outline-button" @click="authMode = 'login'; authOpen = true">
             登录 / 注册
           </button>
         </div>
