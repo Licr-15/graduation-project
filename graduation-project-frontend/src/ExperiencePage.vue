@@ -259,6 +259,11 @@ onUnmounted(() => { window.clearInterval(clock); window.removeEventListener('foc
         <div v-else class="xp-success xp-checkin-done"><Check :size="19" /><div><strong>今天已经完成运动打卡</strong><span>明天再来继续坚持，连续记录不会中断。</span></div></div>
       </div>
       <aside class="xp-checkin-side">
+      <section class="xp-side-records xp-side-records-primary">
+        <div class="xp-side-heading"><h2 class="xp-section">我的打卡记录</h2><span>{{ checkinData.records.length }} 次</span></div>
+        <div v-if="!checkinData.records.length" class="xp-inline-empty">还没有运动记录</div>
+        <div v-else class="xp-side-record-list"><div v-for="item in checkinData.records" :key="item.id" class="xp-side-record"><span class="xp-side-record-icon"><Activity :size="15" /></span><div><strong>{{ item.sportType }}</strong><small>{{ item.checkinDate }} · {{ item.durationMinutes }} 分钟<span v-if="Number(item.distanceKm) > 0"> · {{ item.distanceKm }} 公里</span></small></div><span class="small-tag">已打卡</span></div></div>
+      </section>
       <section class="xp-goals-section">
       <h2 class="xp-section">打卡目标与奖励</h2>
       <p class="xp-goal-note">每次运动至少 {{ checkinData.minDurationMinutes }} 分钟，每天可打卡一次；连续打卡中断后重新计算，累计次数保留。</p>
@@ -272,7 +277,7 @@ onUnmounted(() => { window.clearInterval(clock); window.removeEventListener('foc
         </div>
       </div>
     </section>
-      <section class="xp-side-records">
+      <section class="xp-side-records xp-side-records-secondary">
         <div class="xp-side-heading"><h2 class="xp-section">我的打卡记录</h2><span>{{ checkinData.records.length }} 次</span></div>
         <div v-if="!checkinData.records.length" class="xp-inline-empty">还没有运动记录</div>
         <div v-else class="xp-side-record-list"><div v-for="item in checkinData.records" :key="item.id" class="xp-side-record"><span class="xp-side-record-icon"><Activity :size="15" /></span><div><strong>{{ item.sportType }}</strong><small>{{ item.checkinDate }} · {{ item.durationMinutes }} 分钟<span v-if="Number(item.distanceKm) > 0"> · {{ item.distanceKm }} 公里</span></small></div><span class="small-tag">已打卡</span></div></div>
