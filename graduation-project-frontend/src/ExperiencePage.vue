@@ -238,7 +238,20 @@ onUnmounted(() => { window.clearInterval(clock); window.removeEventListener('foc
   </template>
 
   <template v-else-if="page === 'checkins'">
-    <div class="xp-total"><CalendarDays :size="25" /><span>连续打卡</span><strong>{{ checkinData.streak }} 天</strong><span>累计 {{ checkinData.total }} 次</span></div>
+    <div class="xp-checkin-summary"><div class="xp-total"><CalendarDays :size="25" /><span>连续打卡</span><strong>{{ checkinData.streak }} 天</strong><span>累计 {{ checkinData.total }} 次</span></div><span class="xp-checkin-tip">每天完成一次运动，保持你的节奏</span></div>
+    <form v-if="!checkinData.today?.length" class="xp-form xp-checkin-form" @submit.prevent="saveCheckin">
+      <div class="xp-checkin-form-head"><div class="xp-title"><Camera :size="20" /><h2>今日运动打卡</h2></div><span>有效打卡至少 {{ checkinData.minDurationMinutes }} 分钟</span></div>
+      <div class="xp-fields">
+        <label>运动类型<input v-model="checkinForm.sportType" list="checkin-sports" required maxlength="50" /><datalist id="checkin-sports"><option value="羽毛球" /><option value="乒乓球" /><option value="篮球" /><option value="足球" /><option value="排球" /><option value="跑步" /><option value="散步" /><option value="骑行" /><option value="健身" /></datalist></label>
+        <label>运动时长（分钟）<input v-model.number="checkinForm.durationMinutes" type="number" :min="checkinData.minDurationMinutes" max="1440" required /></label>
+        <label v-if="hasDistance">运动距离（公里，可选）<input v-model.number="checkinForm.distanceKm" type="number" min="0" step="0.1" /></label>
+        <label>运动照片<span class="xp-upload">选择照片<input type="file" accept="image/jpeg,image/png,image/webp" @change="chooseCheckinImage" /></span></label>
+      </div>
+      <textarea v-model="checkinForm.note" rows="2" maxlength="500" placeholder="写下今天的运动感受（可选）"></textarea>
+      <img v-if="checkinForm.imageUrl" class="xp-preview" :src="checkinForm.imageUrl" alt="运动照片预览" />
+      <div class="xp-actions"><button class="primary-button xp-checkin-submit" :disabled="busy"><Camera :size="16" />{{ busy ? '提交中…' : '立即打卡' }}</button></div>
+    </form>
+    <div v-else class="xp-success xp-checkin-done"><Check :size="19" />今天已经完成运动打卡，明天再来继续坚持。</div>
     <section class="xp-goals-section">
       <h2 class="xp-section">打卡目标与奖励</h2>
       <p class="xp-goal-note">每次运动至少 {{ checkinData.minDurationMinutes }} 分钟，每天可打卡一次；连续打卡中断后重新计算，累计次数保留。</p>
@@ -252,19 +265,6 @@ onUnmounted(() => { window.clearInterval(clock); window.removeEventListener('foc
         </div>
       </div>
     </section>
-    <form v-if="!checkinData.today?.length" class="xp-form" @submit.prevent="saveCheckin">
-      <div class="xp-title"><Camera :size="20" /><h2>完成今日运动</h2></div>
-      <div class="xp-fields">
-        <label>运动类型<input v-model="checkinForm.sportType" list="checkin-sports" required maxlength="50" /><datalist id="checkin-sports"><option value="羽毛球" /><option value="乒乓球" /><option value="篮球" /><option value="足球" /><option value="排球" /><option value="跑步" /><option value="散步" /><option value="骑行" /><option value="健身" /></datalist></label>
-        <label>运动时长（分钟）<input v-model.number="checkinForm.durationMinutes" type="number" :min="checkinData.minDurationMinutes" max="1440" required /></label>
-        <label v-if="hasDistance">运动距离（公里，可选）<input v-model.number="checkinForm.distanceKm" type="number" min="0" step="0.1" /></label>
-        <label>运动照片<span class="xp-upload">选择照片<input type="file" accept="image/jpeg,image/png,image/webp" @change="chooseCheckinImage" /></span></label>
-      </div>
-      <textarea v-model="checkinForm.note" rows="2" maxlength="500" placeholder="写下今天的运动感受"></textarea>
-      <img v-if="checkinForm.imageUrl" class="xp-preview" :src="checkinForm.imageUrl" alt="运动照片预览" />
-      <div class="xp-actions"><button class="primary-button" :disabled="busy"><Camera :size="16" />今日打卡</button></div>
-    </form>
-    <div v-else class="xp-success">今天已经完成运动打卡，明天再来继续坚持。</div>
     <h2 class="xp-section">我的打卡记录</h2>
     <div v-if="!checkinData.records.length" class="xp-inline-empty">还没有运动记录</div>
     <div v-else class="xp-list"><div v-for="item in checkinData.records" :key="item.id" class="xp-item xp-record"><div><strong>{{ item.sportType }} · {{ item.checkinDate }}</strong><small>{{ item.durationMinutes }} 分钟<span v-if="Number(item.distanceKm) > 0"> · {{ item.distanceKm }} 公里</span><span v-if="item.note"> · {{ item.note }}</span></small></div><span class="small-tag">已打卡</span></div></div>
