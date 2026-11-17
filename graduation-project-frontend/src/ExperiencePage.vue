@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { api } from './api.js'
-import { Activity, ArrowUpRight, CalendarDays, Camera, Clock3, Heart, MapPin, MessageCircle, Plus, Send, ShieldCheck, Star, Trash2, Trophy, Flag, BarChart3, Users } from 'lucide-vue-next'
+import { Activity, ArrowUpRight, CalendarDays, Camera, Check, Clock3, Heart, MapPin, MessageCircle, Plus, Send, ShieldCheck, Star, Trash2, Trophy, Flag, BarChart3, Users } from 'lucide-vue-next'
 
 const props = defineProps({ page: String, user: Object, token: String })
 const emit = defineEmits(['login'])
@@ -238,21 +238,28 @@ onUnmounted(() => { window.clearInterval(clock); window.removeEventListener('foc
   </template>
 
   <template v-else-if="page === 'checkins'">
-    <div class="xp-checkin-summary"><div class="xp-total"><CalendarDays :size="25" /><span>连续打卡</span><strong>{{ checkinData.streak }} 天</strong><span>累计 {{ checkinData.total }} 次</span></div><span class="xp-checkin-tip">每天完成一次运动，保持你的节奏</span></div>
-    <form v-if="!checkinData.today?.length" class="xp-form xp-checkin-form" @submit.prevent="saveCheckin">
-      <div class="xp-checkin-form-head"><div class="xp-title"><Camera :size="20" /><h2>今日运动打卡</h2></div><span>有效打卡至少 {{ checkinData.minDurationMinutes }} 分钟</span></div>
-      <div class="xp-fields">
-        <label>运动类型<input v-model="checkinForm.sportType" list="checkin-sports" required maxlength="50" /><datalist id="checkin-sports"><option value="羽毛球" /><option value="乒乓球" /><option value="篮球" /><option value="足球" /><option value="排球" /><option value="跑步" /><option value="散步" /><option value="骑行" /><option value="健身" /></datalist></label>
-        <label>运动时长（分钟）<input v-model.number="checkinForm.durationMinutes" type="number" :min="checkinData.minDurationMinutes" max="1440" required /></label>
-        <label v-if="hasDistance">运动距离（公里，可选）<input v-model.number="checkinForm.distanceKm" type="number" min="0" step="0.1" /></label>
-        <label>运动照片<span class="xp-upload">选择照片<input type="file" accept="image/jpeg,image/png,image/webp" @change="chooseCheckinImage" /></span></label>
+    <section class="xp-checkin-hero">
+      <div class="xp-checkin-hero-main"><span class="xp-checkin-kicker"><CalendarDays :size="14" /> DAILY MOVE</span><h2>今天也动起来</h2><p>记录一次真实运动，让坚持变成看得见的进步。</p></div>
+      <div class="xp-checkin-stats"><div><strong>{{ checkinData.streak }}</strong><span>连续天数</span></div><div><strong>{{ checkinData.total }}</strong><span>累计打卡</span></div><div><strong>{{ checkinData.minDurationMinutes }}<small> min</small></strong><span>最低时长</span></div></div>
+    </section>
+    <div class="xp-checkin-layout">
+      <div class="xp-checkin-primary">
+        <form v-if="!checkinData.today?.length" class="xp-form xp-checkin-form" @submit.prevent="saveCheckin">
+          <div class="xp-checkin-form-head"><div><span class="xp-form-kicker">TODAY'S WORKOUT</span><div class="xp-title"><Camera :size="20" /><h2>完成今日打卡</h2></div></div><span class="xp-valid-chip">有效打卡 ≥ {{ checkinData.minDurationMinutes }} 分钟</span></div>
+          <div class="xp-fields">
+            <label>运动类型<input v-model="checkinForm.sportType" list="checkin-sports" required maxlength="50" /><datalist id="checkin-sports"><option value="羽毛球" /><option value="乒乓球" /><option value="篮球" /><option value="足球" /><option value="排球" /><option value="跑步" /><option value="散步" /><option value="骑行" /><option value="健身" /></datalist></label>
+            <label>运动时长（分钟）<input v-model.number="checkinForm.durationMinutes" type="number" :min="checkinData.minDurationMinutes" max="1440" required /></label>
+            <label v-if="hasDistance">运动距离（公里，可选）<input v-model.number="checkinForm.distanceKm" type="number" min="0" step="0.1" /></label>
+            <label>运动照片<span class="xp-upload">选择照片<input type="file" accept="image/jpeg,image/png,image/webp" @change="chooseCheckinImage" /></span></label>
+          </div>
+          <textarea v-model="checkinForm.note" rows="2" maxlength="500" placeholder="写下今天的运动感受（可选）"></textarea>
+          <img v-if="checkinForm.imageUrl" class="xp-preview" :src="checkinForm.imageUrl" alt="运动照片预览" />
+          <div class="xp-actions"><button class="primary-button xp-checkin-submit" :disabled="busy"><Camera :size="16" />{{ busy ? '提交中…' : '立即打卡' }}<ArrowUpRight :size="16" /></button></div>
+        </form>
+        <div v-else class="xp-success xp-checkin-done"><Check :size="19" /><div><strong>今天已经完成运动打卡</strong><span>明天再来继续坚持，连续记录不会中断。</span></div></div>
       </div>
-      <textarea v-model="checkinForm.note" rows="2" maxlength="500" placeholder="写下今天的运动感受（可选）"></textarea>
-      <img v-if="checkinForm.imageUrl" class="xp-preview" :src="checkinForm.imageUrl" alt="运动照片预览" />
-      <div class="xp-actions"><button class="primary-button xp-checkin-submit" :disabled="busy"><Camera :size="16" />{{ busy ? '提交中…' : '立即打卡' }}</button></div>
-    </form>
-    <div v-else class="xp-success xp-checkin-done"><Check :size="19" />今天已经完成运动打卡，明天再来继续坚持。</div>
-    <section class="xp-goals-section">
+      <aside class="xp-checkin-side">
+      <section class="xp-goals-section">
       <h2 class="xp-section">打卡目标与奖励</h2>
       <p class="xp-goal-note">每次运动至少 {{ checkinData.minDurationMinutes }} 分钟，每天可打卡一次；连续打卡中断后重新计算，累计次数保留。</p>
       <div v-if="!checkinData.goals.length" class="xp-inline-empty">当前暂无启用中的奖励目标</div>
@@ -265,6 +272,8 @@ onUnmounted(() => { window.clearInterval(clock); window.removeEventListener('foc
         </div>
       </div>
     </section>
+      </aside>
+    </div>
     <h2 class="xp-section">我的打卡记录</h2>
     <div v-if="!checkinData.records.length" class="xp-inline-empty">还没有运动记录</div>
     <div v-else class="xp-list"><div v-for="item in checkinData.records" :key="item.id" class="xp-item xp-record"><div><strong>{{ item.sportType }} · {{ item.checkinDate }}</strong><small>{{ item.durationMinutes }} 分钟<span v-if="Number(item.distanceKm) > 0"> · {{ item.distanceKm }} 公里</span><span v-if="item.note"> · {{ item.note }}</span></small></div><span class="small-tag">已打卡</span></div></div>
