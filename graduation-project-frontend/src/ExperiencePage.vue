@@ -272,13 +272,14 @@ onUnmounted(() => { window.clearInterval(clock); window.removeEventListener('foc
         </div>
       </div>
     </section>
+      <section class="xp-side-records">
+        <div class="xp-side-heading"><h2 class="xp-section">我的打卡记录</h2><span>{{ checkinData.records.length }} 次</span></div>
+        <div v-if="!checkinData.records.length" class="xp-inline-empty">还没有运动记录</div>
+        <div v-else class="xp-side-record-list"><div v-for="item in checkinData.records" :key="item.id" class="xp-side-record"><span class="xp-side-record-icon"><Activity :size="15" /></span><div><strong>{{ item.sportType }}</strong><small>{{ item.checkinDate }} · {{ item.durationMinutes }} 分钟<span v-if="Number(item.distanceKm) > 0"> · {{ item.distanceKm }} 公里</span></small></div><span class="small-tag">已打卡</span></div></div>
+      </section>
+      <section v-if="checkinData.rewards?.length" class="xp-side-rewards"><div class="xp-side-heading"><h2 class="xp-section">获得的奖励</h2><Trophy :size="16" /></div><div class="xp-side-reward-list"><div v-for="item in checkinData.rewards" :key="item.name + item.createdAt"><Trophy :size="16" /><span><strong>{{ item.name }}</strong><small>{{ item.sourceDate }} · +{{ item.rewardPoints }} 积分</small></span></div></div></section>
       </aside>
     </div>
-    <h2 class="xp-section">我的打卡记录</h2>
-    <div v-if="!checkinData.records.length" class="xp-inline-empty">还没有运动记录</div>
-    <div v-else class="xp-list"><div v-for="item in checkinData.records" :key="item.id" class="xp-item xp-record"><div><strong>{{ item.sportType }} · {{ item.checkinDate }}</strong><small>{{ item.durationMinutes }} 分钟<span v-if="Number(item.distanceKm) > 0"> · {{ item.distanceKm }} 公里</span><span v-if="item.note"> · {{ item.note }}</span></small></div><span class="small-tag">已打卡</span></div></div>
-    <h2 v-if="checkinData.rewards?.length" class="xp-section">获得的奖励</h2>
-    <div class="xp-badge-grid"><div v-for="item in checkinData.rewards" :key="item.name + item.createdAt"><Trophy :size="20" /><strong>{{ item.name }}</strong><small>{{ item.sourceDate }} · +{{ item.rewardPoints }} 积分 {{ item.badgeName || '' }}</small></div></div>
   </template>
 
   <template v-else-if="page === 'admin-reward-rules'">
