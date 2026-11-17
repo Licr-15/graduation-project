@@ -93,6 +93,8 @@ const venueForm = reactive({
 });
 const noticeForm = reactive({ title: "", content: "" });
 const commentText = ref("");
+const activityClock = ref(Date.now());
+let activityClockTimer;
 let toastTimer;
 
 const joinedIds = computed(() => new Set(joined.value.map((item) => item.id)));
@@ -174,6 +176,8 @@ const activityPreview = computed(() =>
   sportImage(activityForm.sportType, activityForm.imageUrl),
 );
 function activityStatus(item) {
+  activityClock.value;
+  if (item.endTime && new Date(item.endTime).getTime() <= Date.now()) return "已结束";
   if (isPast(item.startTime)) return "已开始";
   return item.joinedCount >= item.maxPeople ? "已满员" : "正在招募";
 }
@@ -599,9 +603,11 @@ watch(
 );
 onMounted(() => {
   auth.refresh();
+  activityClockTimer = window.setInterval(() => { activityClock.value = Date.now(); }, 30000);
   window.addEventListener("lvyin-unauthorized", unauthorized);
 });
 onUnmounted(() => {
+  window.clearInterval(activityClockTimer);
   window.removeEventListener("lvyin-unauthorized", unauthorized);
   clearTimeout(toastTimer);
 });
@@ -823,7 +829,7 @@ onUnmounted(() => {
                   class="status-label"
                   :class="{
                     full: activityStatus(item) === '已满员',
-                    past: activityStatus(item) === '已开始',
+                    past: activityStatus(item) === '已开始' || activityStatus(item) === '已结束',
                   }"
                   >{{ activityStatus(item) }}</span
                 ><span class="sport-label">{{ item.sportType }}</span>
@@ -1042,7 +1048,9 @@ onUnmounted(() => {
                     ? "这是你发布的活动"
                     : detail.status !== "OPEN"
                       ? "活动已取消"
-                      : "活动已开始"
+                      : detail.endTime && new Date(detail.endTime).getTime() <= Date.now()
+                        ? "活动已结束"
+                        : "活动已开始"
                 }}
               </p>
             </aside>
@@ -1109,8 +1117,10 @@ onUnmounted(() => {
                   <span class="small-tag">{{ item.sportType }}</span
                   ><span class="small-tag muted-tag">{{
                     item.status === "OPEN"
-                      ? isPast(item.startTime)
-                        ? "已开始"
+                      ? item.endTime && new Date(item.endTime).getTime() <= Date.now()
+                        ? "已结束"
+                        : isPast(item.startTime)
+                          ? "已开始"
                         : "招募中"
                       : "已取消"
                   }}</span>
