@@ -509,6 +509,12 @@ function logout() {
   router.push("/activities");
   message("已退出登录");
 }
+function syncLocalAvatar(user) {
+  const apply = (items) => items.forEach((item) => { if (Number(item.publisherId) === Number(user.id)) item.publisherAvatar = user.avatar || null; if (Number(item.userId) === Number(user.id)) item.avatar = user.avatar || null; });
+  [activities.value, favorites.value, created.value, joined.value, adminActivities.value].forEach(apply);
+  if (detail.value && Number(detail.value.publisherId) === Number(user.id)) detail.value.publisherAvatar = user.avatar || null;
+  comments.value.forEach((item) => { if (Number(item.userId) === Number(user.id)) item.avatar = user.avatar || null; });
+}
 async function saveProfile() {
   saving.value = true;
   try {
@@ -518,6 +524,7 @@ async function saveProfile() {
       avatar: profileForm.avatar || null,
     });
     sessionStorage.setItem("lvyin_user", JSON.stringify(auth.user));
+    syncLocalAvatar(auth.user);
     message("资料已保存");
   } catch (err) {
     fail(err);
