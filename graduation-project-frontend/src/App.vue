@@ -15,6 +15,7 @@ import {
 import {
   Activity,
   ArrowLeft,
+  BarChart3,
   CalendarDays,
   Check,
   ChevronRight,
@@ -31,6 +32,7 @@ import {
   Search,
   ShieldCheck,
   Shuffle,
+  Star,
   Trophy,
   Trash2,
   UserRound,
@@ -44,6 +46,7 @@ const auth = useAuthStore();
 const page = computed(() => route.name);
 const isAdmin = computed(() => auth.user?.role === "ADMIN");
 const isStudent = computed(() => auth.user?.role === "STUDENT");
+const favorites = ref([]);
 const activities = ref([]);
 const created = ref([]);
 const joined = ref([]);
@@ -102,6 +105,7 @@ const title = computed(
       activities: "发现运动搭子",
       detail: "活动详情",
       mine: "我的活动",
+      favorites: "我的收藏",
       venues: "运动场地",
       notices: "校园公告",
       competitions: "校园赛事",
@@ -114,6 +118,7 @@ const title = computed(
       "admin-activities": "活动管理",
       "admin-venues": "场地管理",
       "admin-notices": "公告管理",
+      "admin-dashboard": "数据看板",
     })[page.value] || "绿茵结伴",
 );
 function message(text) {
@@ -236,6 +241,17 @@ async function loadMine() {
     loading.value = false;
   }
 }
+async function loadFavorites() {
+  if (!auth.token) return;
+  loading.value = true; clearError();
+  try { favorites.value = (await api.get("/activities/favorites")) || []; }
+  catch (err) { fail(err); } finally { loading.value = false; }
+}
+async function toggleActivityFavorite(item) {
+  if (!requireLogin()) return;
+  try { const result = await api.post(`/activities/${item.id}/favorite`, {}); if (result.favorited) { favorites.value = [item, ...favorites.value.filter(x => x.id !== item.id)]; message("已收藏活动"); } else { favorites.value = favorites.value.filter(x => x.id !== item.id); message("已取消收藏"); } }
+  catch (err) { fail(err); }
+}
 async function loadAdminActivities() {
   loading.value = true;
   clearError();
@@ -293,6 +309,7 @@ async function loadPage() {
   if (page.value === "activities") await loadActivities();
   else if (page.value === "detail") await loadDetail();
   else if (page.value === "mine") await loadMine();
+  else if (page.value === "favorites") await loadFavorites();
   else if (page.value === "admin-activities") await loadAdminActivities();
   else if (page.value === "venues" || page.value === "admin-venues")
     await loadVenues();
@@ -629,6 +646,7 @@ onUnmounted(() => {
         :class="{ current: page === 'mine' }"
         ><CalendarDays :size="18" />我的活动</RouterLink
       >
+      <RouterLink v-if="!isAdmin" to="/favorites" class="side-link" :class="{ current: page === 'favorites' }"><Star :size="18" />我的收藏</RouterLink>
       <RouterLink v-if="!isAdmin"
         to="/venues"
         class="side-link"
@@ -646,6 +664,7 @@ onUnmounted(() => {
       <RouterLink v-if="!isAdmin" to="/points" class="side-link" :class="{ current: page === 'points' }"><Check :size="18" />我的积分</RouterLink>
       <RouterLink v-if="!isAdmin" to="/checkins" class="side-link" :class="{ current: page === 'checkins' }"><CalendarDays :size="18" />每日打卡</RouterLink>
       <div v-if="isAdmin" class="side-label section-gap">管理员</div>
+      <RouterLink v-if="isAdmin" to="/admin/dashboard" class="side-link" :class="{ current: page === 'admin-dashboard' }"><BarChart3 :size="18" />数据看板</RouterLink>
       <RouterLink v-if="isAdmin" to="/competitions" class="side-link" :class="{ current: page === 'competitions' }"><Trophy :size="18" />赛事管理</RouterLink>
       <RouterLink
         v-if="isAdmin"
@@ -723,7 +742,7 @@ onUnmounted(() => {
         </div>
       </header>
       <main class="content">
-        <ExperiencePage v-if="['competitions', 'community', 'points', 'admin-users', 'checkins', 'admin-reward-rules'].includes(page)" :key="page" :page="page" :user="auth.user" :token="auth.token" @login="authOpen = true" />
+        <ExperiencePage v-if="['competitions', 'community', 'points', 'admin-users', 'checkins', 'admin-reward-rules', 'admin-dashboard'].includes(page)" :key="page" :page="page" :user="auth.user" :token="auth.token" @login="authOpen = true" />
         <template v-else-if="page === 'activities'">
           <div class="page-head">
             <div>
@@ -826,7 +845,7 @@ onUnmounted(() => {
                   }}</span
                   ><span class="host-name">{{ item.publisherName }}</span
                   ><span class="spacer"></span
-                  ><span>{{ item.joinedCount }} / {{ item.maxPeople }} 人</span
+                  ><button v-if="auth.token" class="card-favorite" type="button" title="收藏活动" @click.stop="toggleActivityFavorite(item)"><Star :size="15" /></button><span>{{ item.joinedCount }} / {{ item.maxPeople }} 人</span
                   ><ChevronRight :size="16" />
                 </div>
               </div>
@@ -1029,6 +1048,13 @@ onUnmounted(() => {
             </aside>
           </div></template
         >
+        <template v-else-if="page === 'favorites'">
+          <div class="page-head"><div><p class="eyebrow">SAVED ACTIVITIES</p><h1>我的收藏</h1><p>保存你感兴趣的运动结伴活动，方便之后查看。</p></div></div>
+          <div v-if="loading" class="state-panel">正在加载收藏…</div>
+          <div v-else-if="error" class="state-panel">{{ error }}</div>
+          <div v-else-if="!favorites.length" class="state-panel"><Star :size="30" /><h3>还没有收藏活动</h3><p>在活动卡片右下角点击星标即可收藏。</p><RouterLink class="primary-button" to="/activities">去发现活动</RouterLink></div>
+          <div v-else class="activity-grid"><article v-for="item in favorites" :key="item.id" class="activity-card" @click="router.push(`/activities/${item.id}`)"><div class="card-image" :style="{ backgroundImage: `url(${sportImage(item.sportType, item.imageUrl)})` }"><span class="status-label">{{ activityStatus(item) }}</span><span class="sport-label">{{ item.sportType }}</span></div><div class="card-content"><h3>{{ item.title }}</h3><p><Clock3 :size="15" />{{ dateTime(item.startTime) }}</p><p><MapPin :size="15" />{{ item.venueName || '地点由发起人告知' }}</p><div class="card-footer"><span class="host-initial">{{ item.publisherName?.slice(0, 1) }}</span><span class="host-name">{{ item.publisherName }}</span><span class="spacer"></span><button class="card-favorite saved" type="button" title="取消收藏" @click.stop="toggleActivityFavorite(item)"><Star :size="15" fill="currentColor" /></button></div></div></article></div>
+        </template>
         <template v-else-if="page === 'mine'"
           ><div class="page-head">
             <div>

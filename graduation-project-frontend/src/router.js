@@ -7,6 +7,7 @@ const routes = [
   { path: "/activities", name: "activities", component: RouteShell },
   { path: "/activities/:id", name: "detail", component: RouteShell },
   { path: "/mine", name: "mine", component: RouteShell, meta: { auth: true } },
+  { path: "/favorites", name: "favorites", component: RouteShell, meta: { auth: true } },
   { path: "/venues", name: "venues", component: RouteShell },
   { path: "/notices", name: "notices", component: RouteShell },
   { path: "/competitions", name: "competitions", component: RouteShell },
@@ -15,6 +16,7 @@ const routes = [
   { path: "/checkins", name: "checkins", component: RouteShell, meta: { auth: true } },
   { path: "/admin/users", name: "admin-users", component: RouteShell, meta: { admin: true } },
   { path: "/admin/reward-rules", name: "admin-reward-rules", component: RouteShell, meta: { admin: true } },
+  { path: "/admin/dashboard", name: "admin-dashboard", component: RouteShell, meta: { admin: true } },
   {
     path: "/profile",
     name: "profile",

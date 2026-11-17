@@ -227,7 +227,27 @@ public class ExperienceController {
             "createdCount",db.queryForObject("SELECT COUNT(*) FROM activity WHERE publisher_id=?",Integer.class,id),
             "competitionCount",db.queryForObject("SELECT COUNT(*) FROM competition_sign WHERE user_id=? AND status IN ('ENROLLED','CHECKED')",Integer.class,id),
             "checkinCount",db.queryForObject("SELECT COUNT(*) FROM competition_sign WHERE user_id=? AND status='CHECKED'",Integer.class,id),
-            "sportBreakdown",db.queryForList("SELECT sport_type AS sportType,COUNT(*) AS count FROM activity a JOIN activity_sign s ON s.activity_id=a.id WHERE s.user_id=? AND s.status='JOINED' GROUP BY sport_type ORDER BY count DESC",id)));
+            "totalDurationMinutes",db.queryForObject("SELECT COALESCE(SUM(duration_minutes),0) FROM sport_checkin WHERE user_id=?",Integer.class,id),
+            "totalDistanceKm",db.queryForObject("SELECT COALESCE(SUM(distance_km),0) FROM sport_checkin WHERE user_id=?",Double.class,id),
+            "favoriteCount",db.queryForObject("SELECT COUNT(*) FROM activity_favorite WHERE user_id=?",Integer.class,id),
+            "sportBreakdown",db.queryForList("SELECT sport_type AS sportType,COUNT(*) AS count FROM activity a JOIN activity_sign s ON s.activity_id=a.id WHERE s.user_id=? AND s.status='JOINED' GROUP BY sport_type ORDER BY count DESC",id),
+            "checkinBreakdown",db.queryForList("SELECT sport_type AS sportType,COUNT(*) AS count,COALESCE(SUM(duration_minutes),0) AS minutes FROM sport_checkin WHERE user_id=? GROUP BY sport_type ORDER BY count DESC",id)));
+    }
+    @GetMapping("/admin/dashboard")
+    public Result<?> dashboard(HttpServletRequest request) {
+        admin(user(request));
+        return Result.ok(Map.of(
+            "userCount", db.queryForObject("SELECT COUNT(*) FROM `user` WHERE status=1", Integer.class),
+            "activityCount", db.queryForObject("SELECT COUNT(*) FROM activity", Integer.class),
+            "openActivityCount", db.queryForObject("SELECT COUNT(*) FROM activity WHERE status='OPEN'", Integer.class),
+            "competitionCount", db.queryForObject("SELECT COUNT(*) FROM sport_competition", Integer.class),
+            "competitionSignCount", db.queryForObject("SELECT COUNT(*) FROM competition_sign WHERE status IN ('ENROLLED','CHECKED')", Integer.class),
+            "checkinCount", db.queryForObject("SELECT COUNT(*) FROM sport_checkin", Integer.class),
+            "communityPostCount", db.queryForObject("SELECT COUNT(*) FROM community_post WHERE post_type<>'NOTICE'", Integer.class),
+            "pendingReportCount", db.queryForObject("SELECT COUNT(*) FROM community_interaction WHERE interaction_type='REPORT' AND status='PENDING'", Integer.class),
+            "sportBreakdown", db.queryForList("SELECT sport_type AS sportType,COUNT(*) AS count FROM activity GROUP BY sport_type ORDER BY count DESC"),
+            "weeklyCheckins", db.queryForList("SELECT DATE_FORMAT(checkin_date,'%m-%d') AS day,COUNT(*) AS count FROM sport_checkin WHERE checkin_date>=DATE_SUB(CURDATE(),INTERVAL 6 DAY) GROUP BY checkin_date ORDER BY checkin_date")
+        ));
     }
     @GetMapping("/recommendations")
     public Result<?> recommendations(HttpServletRequest request) {

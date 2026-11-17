@@ -83,6 +83,8 @@ Spring Boot + Vue 3 毕业设计项目。
 - `GET/POST/DELETE /api/community/posts...` 社区动态与话题
 - `GET/POST /api/community/posts/{id}/replies` 查看与发布回复
 - `GET /api/admin/users`、`PUT /api/admin/users/{id}/role` 管理赛事管理员角色
+- `GET /api/admin/dashboard` 查看管理员数据看板
+- `GET /api/activities/favorites`、`POST /api/activities/{id}/favorite` 管理活动收藏
 
 ## 页面图片
 

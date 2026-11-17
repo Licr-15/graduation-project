@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { api } from './api.js'
-import { ArrowUpRight, CalendarDays, Camera, Heart, MessageCircle, Plus, Send, ShieldCheck, Star, Trash2, Trophy, Flag, BarChart3, Users } from 'lucide-vue-next'
+import { Activity, ArrowUpRight, CalendarDays, Camera, Clock3, Heart, MapPin, MessageCircle, Plus, Send, ShieldCheck, Star, Trash2, Trophy, Flag, BarChart3, Users } from 'lucide-vue-next'
 
 const props = defineProps({ page: String, user: Object, token: String })
 const emit = defineEmits(['login'])
@@ -14,7 +14,8 @@ let clock
 const points = ref({ total: 0, records: [], enrollments: [] })
 const users = ref([])
 const leaderboard = ref([])
-const stats = ref({ activityCount: 0, createdCount: 0, competitionCount: 0, checkinCount: 0, sportBreakdown: [] })
+const stats = ref({ activityCount: 0, createdCount: 0, competitionCount: 0, checkinCount: 0, totalDurationMinutes: 0, totalDistanceKm: 0, favoriteCount: 0, sportBreakdown: [], checkinBreakdown: [] })
+const dashboard = ref({ userCount: 0, activityCount: 0, openActivityCount: 0, competitionCount: 0, competitionSignCount: 0, checkinCount: 0, communityPostCount: 0, pendingReportCount: 0, sportBreakdown: [], weeklyCheckins: [] })
 const checkinData = ref({ today: [], records: [], streak: 0, total: 0, rewards: [], goals: [], minDurationMinutes: 20 })
 const rules = ref([])
 const checkinPolicy = reactive({ minDurationMinutes: 20 })
@@ -66,6 +67,7 @@ async function load() {
       points.value = result[0]; leaderboard.value = result[1] || []; stats.value = result[2] || stats.value; recommendations.value = result[3] || []
     }
     else if (props.page === 'admin-users') users.value = await api.get('/admin/users')
+    else if (props.page === 'admin-dashboard') dashboard.value = await api.get('/admin/dashboard')
     else if (props.page === 'checkins') checkinData.value = await api.get('/checkins/mine')
     else if (props.page === 'admin-reward-rules') {
       const [currentRules, policy] = await Promise.all([api.get('/admin/reward-rules'), api.get('/admin/checkin-policy')])
@@ -139,7 +141,7 @@ onUnmounted(() => { window.clearInterval(clock); window.removeEventListener('foc
 </script>
 
 <template>
-  <div class="page-head"><div><p class="eyebrow">CAMPUS SPORTS</p><h1>{{ { competitions: '校园赛事', community: '运动社区', points: '我的积分', checkins: '每日运动打卡', 'admin-reward-rules': '打卡奖励规则', 'admin-users': '角色管理' }[page] }}</h1></div></div>
+  <div class="page-head"><div><p class="eyebrow">CAMPUS SPORTS</p><h1>{{ { competitions: '校园赛事', community: '运动社区', points: '我的积分', checkins: '每日运动打卡', 'admin-reward-rules': '打卡奖励规则', 'admin-users': '角色管理', 'admin-dashboard': '数据看板' }[page] }}</h1></div></div>
   <p v-if="error" class="xp-alert">{{ error }}</p><p v-if="notice" class="xp-success">{{ notice }}</p>
 
   <template v-if="page === 'competitions'">
@@ -204,6 +206,7 @@ onUnmounted(() => { window.clearInterval(clock); window.removeEventListener('foc
   <template v-else-if="page === 'points'">
     <div class="xp-total"><Trophy :size="25" /><span>累计积分</span><strong>{{ points.total }}</strong></div>
     <div class="xp-stat-grid"><div><BarChart3 :size="19" /><strong>{{ stats.activityCount }}</strong><span>参加活动</span></div><div><Trophy :size="19" /><strong>{{ stats.competitionCount }}</strong><span>赛事报名</span></div><div><Camera :size="19" /><strong>{{ stats.checkinCount }}</strong><span>照片打卡</span></div><div><Plus :size="19" /><strong>{{ stats.createdCount }}</strong><span>发布活动</span></div></div>
+    <div class="xp-stat-grid xp-stat-grid-secondary"><div><Clock3 :size="19" /><strong>{{ stats.totalDurationMinutes }}</strong><span>运动分钟</span></div><div><MapPin :size="19" /><strong>{{ Number(stats.totalDistanceKm || 0).toFixed(1) }}</strong><span>累计公里</span></div><div><Star :size="19" /><strong>{{ stats.favoriteCount }}</strong><span>收藏活动</span></div><div><Activity :size="19" /><strong>{{ stats.checkinBreakdown?.[0]?.sportType || '暂无' }}</strong><span>常参与运动</span></div></div>
     <div v-if="points.badges?.length" class="xp-badges"><h2 class="xp-section">我的勋章</h2><div class="xp-badge-grid"><div v-for="badge in points.badges" :key="badge.name"><span>{{ badge.icon }}</span><strong>{{ badge.name }}</strong><small>{{ badge.description }}</small></div></div></div>
     <section class="xp-points-section">
       <h2 class="xp-section">积分排行榜</h2>
@@ -226,6 +229,12 @@ onUnmounted(() => { window.clearInterval(clock); window.removeEventListener('foc
       <h2 class="xp-section">为你推荐的活动</h2>
       <div class="xp-recommendations"><a v-for="item in recommendations" :key="item.id" class="xp-recommend-row" :href="`/activities/${item.id}`"><span class="xp-sport-icon"><CalendarDays :size="18" /></span><span class="xp-recommend-info"><strong>{{ item.title }}</strong><small>{{ item.sportType }} · {{ date(item.startTime) }}</small></span><ArrowUpRight :size="18" class="xp-recommend-arrow" /></a></div>
     </section>
+  </template>
+
+  <template v-else-if="page === 'admin-dashboard'">
+    <div class="xp-stat-grid xp-dashboard-grid"><div><Users :size="19" /><strong>{{ dashboard.userCount }}</strong><span>活跃用户</span></div><div><Activity :size="19" /><strong>{{ dashboard.activityCount }}</strong><span>活动总数</span></div><div><Trophy :size="19" /><strong>{{ dashboard.competitionCount }}</strong><span>赛事总数</span></div><div><CalendarDays :size="19" /><strong>{{ dashboard.checkinCount }}</strong><span>打卡总次数</span></div></div>
+    <div class="xp-dashboard-columns"><section class="xp-dashboard-panel"><h2 class="xp-section">平台运行概览</h2><div class="xp-dashboard-list"><div><span>开放中的活动</span><strong>{{ dashboard.openActivityCount }}</strong></div><div><span>赛事报名人次</span><strong>{{ dashboard.competitionSignCount }}</strong></div><div><span>社区动态</span><strong>{{ dashboard.communityPostCount }}</strong></div><div><span>待处理举报</span><strong>{{ dashboard.pendingReportCount }}</strong></div></div></section><section class="xp-dashboard-panel"><h2 class="xp-section">运动类型分布</h2><div v-if="!dashboard.sportBreakdown?.length" class="xp-inline-empty">暂无活动数据</div><div v-else class="xp-dashboard-bars"><div v-for="item in dashboard.sportBreakdown" :key="item.sportType"><span>{{ item.sportType }}</span><i><b :style="{ width: `${Math.min(100, item.count / Math.max(...dashboard.sportBreakdown.map(x => x.count)) * 100)}%` }"></b></i><strong>{{ item.count }}</strong></div></div></section></div>
+    <section class="xp-dashboard-panel"><h2 class="xp-section">近 7 天打卡趋势</h2><div v-if="!dashboard.weeklyCheckins?.length" class="xp-inline-empty">暂无打卡数据</div><div v-else class="xp-dashboard-bars xp-trend-bars"><div v-for="item in dashboard.weeklyCheckins" :key="item.day"><span>{{ item.day }}</span><i><b :style="{ height: `${Math.max(8, item.count / Math.max(...dashboard.weeklyCheckins.map(x => x.count)) * 100)}%` }"></b></i><strong>{{ item.count }}</strong></div></div></section>
   </template>
 
   <template v-else-if="page === 'checkins'">
