@@ -135,7 +135,10 @@ function saveRule() { const data = { ...rule, targetValue: Number(rule.targetVal
 function resetRule() { Object.assign(rule, { id: null, name: '', ruleType: 'STREAK', targetValue: 3, rewardPoints: 10, badgeName: '' }) }
 function editRule(item) { Object.assign(rule, item) }
 function refreshOnFocus() { now.value = Date.now(); if (['points', 'checkins', 'competitions', 'community'].includes(props.page)) load() }
-watch(() => props.user?.avatar, () => { if (props.page === 'community') load() })
+watch(() => props.user?.avatar, (avatar) => {
+  if (props.page === 'community') load()
+  if (props.page === 'points' && props.user?.id) leaderboard.value = leaderboard.value.map(member => Number(member.id) === Number(props.user.id) ? { ...member, avatar: avatar || null } : member)
+})
 onMounted(() => { load(); clock = window.setInterval(() => now.value = Date.now(), 30000); window.addEventListener('focus', refreshOnFocus) })
 onUnmounted(() => { window.clearInterval(clock); window.removeEventListener('focus', refreshOnFocus) })
 </script>
@@ -214,7 +217,7 @@ onUnmounted(() => { window.clearInterval(clock); window.removeEventListener('foc
       <div v-else class="xp-leaderboard">
         <div v-for="(member, index) in leaderboard" :key="member.id" class="xp-leader-row" :class="{ 'xp-leader-self': member.id === user?.id }">
           <span class="xp-rank" :class="{ 'xp-rank-top': index < 3 }">{{ String(index + 1).padStart(2, '0') }}</span>
-          <span class="xp-leader-avatar">{{ member.nickname?.slice(0, 1) || '同' }}</span>
+          <span class="xp-leader-avatar"><img v-if="member.avatar" :src="member.avatar" alt="" /><span v-else>{{ member.nickname?.slice(0, 1) || '同' }}</span></span>
           <span class="xp-leader-info"><strong>{{ member.nickname }}<small v-if="member.id === user?.id" class="xp-self-label">我</small></strong><small>{{ member.checkinCount }} 条积分记录</small></span>
           <span class="xp-leader-score"><strong>{{ member.totalPoints }}</strong><small>积分</small></span>
         </div>

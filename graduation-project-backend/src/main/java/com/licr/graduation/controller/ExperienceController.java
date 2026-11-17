@@ -219,7 +219,7 @@ public class ExperienceController {
         return result;
     }
     @GetMapping("/points/leaderboard")
-    public Result<?> leaderboard() { return Result.ok(db.queryForList("SELECT u.id,u.nickname,COALESCE(SUM(p.points),0) AS totalPoints,COUNT(p.id) AS checkinCount FROM `user` u LEFT JOIN point_ledger p ON p.user_id=u.id WHERE u.status=1 AND u.role='STUDENT' GROUP BY u.id,u.nickname ORDER BY totalPoints DESC,u.id ASC LIMIT 50")); }
+    public Result<?> leaderboard() { return Result.ok(db.queryForList("SELECT u.id,u.nickname,u.avatar,COALESCE(SUM(p.points),0) AS totalPoints,COUNT(p.id) AS checkinCount FROM `user` u LEFT JOIN point_ledger p ON p.user_id=u.id WHERE u.status=1 AND u.role='STUDENT' GROUP BY u.id,u.nickname,u.avatar ORDER BY totalPoints DESC,u.id ASC LIMIT 50")); }
     @GetMapping("/stats/mine")
     public Result<?> stats(HttpServletRequest request) {
         long id=user(request).id();
@@ -253,7 +253,7 @@ public class ExperienceController {
     public Result<?> recommendations(HttpServletRequest request) {
         long id=user(request).id();
         return Result.ok(db.queryForList("""
-            SELECT a.id,a.publisher_id AS publisherId,u.nickname AS publisherName,a.venue_id AS venueId,v.name AS venueName,a.title,a.sport_type AS sportType,a.description,a.image_url AS imageUrl,a.start_time AS startTime,a.end_time AS endTime,a.max_people AS maxPeople,
+            SELECT a.id,a.publisher_id AS publisherId,u.nickname AS publisherName,u.avatar AS publisherAvatar,a.venue_id AS venueId,v.name AS venueName,a.title,a.sport_type AS sportType,a.description,a.image_url AS imageUrl,a.start_time AS startTime,a.end_time AS endTime,a.max_people AS maxPeople,
               (SELECT COUNT(*) FROM activity_sign x WHERE x.activity_id=a.id AND x.status='JOINED') AS joinedCount,a.status,a.created_at AS createdAt
             FROM activity a JOIN `user` u ON u.id=a.publisher_id LEFT JOIN sport_venue v ON v.id=a.venue_id
             WHERE a.status='OPEN' AND a.start_time>NOW() AND a.publisher_id<>? AND a.sport_type IN (SELECT a2.sport_type FROM activity a2 JOIN activity_sign s2 ON s2.activity_id=a2.id WHERE s2.user_id=? GROUP BY a2.sport_type)
@@ -262,7 +262,7 @@ public class ExperienceController {
     }
     private void competitionManager(CurrentUser u,long id) { ownCompetition(u,id); }
     @GetMapping("/competitions/{id}/participants")
-    public Result<?> participants(HttpServletRequest request,@PathVariable long id) { competitionManager(user(request),id); return Result.ok(db.queryForList("SELECT s.id,s.user_id AS userId,u.nickname,u.username,s.status,s.approval_status AS approvalStatus,s.proof_image IS NOT NULL AS checked,s.result_rank AS resultRank,s.result_score AS resultScore FROM competition_sign s JOIN `user` u ON u.id=s.user_id WHERE s.competition_id=? ORDER BY s.created_at",id)); }
+    public Result<?> participants(HttpServletRequest request,@PathVariable long id) { competitionManager(user(request),id); return Result.ok(db.queryForList("SELECT s.id,s.user_id AS userId,u.nickname,u.avatar,u.username,s.status,s.approval_status AS approvalStatus,s.proof_image IS NOT NULL AS checked,s.result_rank AS resultRank,s.result_score AS resultScore FROM competition_sign s JOIN `user` u ON u.id=s.user_id WHERE s.competition_id=? ORDER BY s.created_at",id)); }
     @PutMapping("/competitions/{competitionId}/participants/{signId}/approval")
     public Result<?> approval(HttpServletRequest request,@PathVariable long competitionId,@PathVariable long signId,@RequestParam String status) { competitionManager(user(request),competitionId); if(!List.of("APPROVED","REJECTED","PENDING").contains(status)) throw new BusinessException("报名审核状态无效"); db.update("UPDATE competition_sign SET approval_status=? WHERE id=? AND competition_id=?",status,signId,competitionId); return Result.ok(null); }
     @PutMapping("/competitions/{competitionId}/participants/{signId}/result")
