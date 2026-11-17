@@ -4,6 +4,7 @@ import com.licr.graduation.common.BusinessException;
 import com.licr.graduation.common.Result;
 import com.licr.graduation.security.CurrentUser;
 import com.licr.graduation.service.CheckinRewardService;
+import com.licr.graduation.service.UserNotificationService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
@@ -26,7 +27,8 @@ import org.springframework.jdbc.support.GeneratedKeyHolder;
 public class ExperienceController {
     private final JdbcTemplate db;
     private final CheckinRewardService rewards;
-    public ExperienceController(JdbcTemplate db, CheckinRewardService rewards) { this.db = db; this.rewards = rewards; }
+    private final UserNotificationService notifications;
+    public ExperienceController(JdbcTemplate db, CheckinRewardService rewards, UserNotificationService notifications) { this.db = db; this.rewards = rewards; this.notifications = notifications; }
 
     public record CompetitionInput(@NotBlank @Size(max=100) String title, @NotBlank @Size(max=50) String sportType,
         @Size(max=1000) String description, @NotNull LocalDateTime startTime, @NotNull LocalDateTime endTime,
@@ -176,6 +178,8 @@ public class ExperienceController {
         if (!time(rows.get(0).get("start_time")).isAfter(LocalDateTime.now())) throw new BusinessException("赛事已开始");
         try { db.update("INSERT INTO competition_sign(competition_id,user_id,approval_status) VALUES(?,?,'PENDING') ON DUPLICATE KEY UPDATE status=IF(status='CANCELLED','ENROLLED',status),approval_status=IF(status='CANCELLED','PENDING',approval_status)",id,u.id()); }
         catch (DuplicateKeyException e) { throw new BusinessException("已经报名"); }
+        Map<String,Object> competition=db.queryForMap("SELECT manager_id,title FROM sport_competition WHERE id=?",id);
+        notifications.create(((Number)competition.get("manager_id")).longValue(),u.id(),"COMPETITION_ENROLL","赛事有新的报名",u.username()+" 报名了《"+competition.get("title")+"》","/competitions");
         return Result.ok(null);
     }
     @DeleteMapping("/competitions/{id}/enroll")
@@ -264,7 +268,7 @@ public class ExperienceController {
     @GetMapping("/competitions/{id}/participants")
     public Result<?> participants(HttpServletRequest request,@PathVariable long id) { competitionManager(user(request),id); return Result.ok(db.queryForList("SELECT s.id,s.user_id AS userId,u.nickname,u.avatar,u.username,s.status,s.approval_status AS approvalStatus,s.proof_image IS NOT NULL AS checked,s.result_rank AS resultRank,s.result_score AS resultScore FROM competition_sign s JOIN `user` u ON u.id=s.user_id WHERE s.competition_id=? ORDER BY s.created_at",id)); }
     @PutMapping("/competitions/{competitionId}/participants/{signId}/approval")
-    public Result<?> approval(HttpServletRequest request,@PathVariable long competitionId,@PathVariable long signId,@RequestParam String status) { competitionManager(user(request),competitionId); if(!List.of("APPROVED","REJECTED","PENDING").contains(status)) throw new BusinessException("报名审核状态无效"); db.update("UPDATE competition_sign SET approval_status=? WHERE id=? AND competition_id=?",status,signId,competitionId); return Result.ok(null); }
+    public Result<?> approval(HttpServletRequest request,@PathVariable long competitionId,@PathVariable long signId,@RequestParam String status) { competitionManager(user(request),competitionId); if(!List.of("APPROVED","REJECTED","PENDING").contains(status)) throw new BusinessException("报名审核状态无效"); Map<String,Object> target=db.queryForMap("SELECT s.user_id,c.title FROM competition_sign s JOIN sport_competition c ON c.id=s.competition_id WHERE s.id=? AND s.competition_id=?",signId,competitionId); db.update("UPDATE competition_sign SET approval_status=? WHERE id=? AND competition_id=?",status,signId,competitionId); if(!"PENDING".equals(status)) notifications.create(((Number)target.get("user_id")).longValue(),user(request).id(),"COMPETITION_"+status,"赛事报名审核结果","《"+target.get("title")+"》报名已"+("APPROVED".equals(status)?"通过":"拒绝"),"/competitions"); return Result.ok(null); }
     @PutMapping("/competitions/{competitionId}/participants/{signId}/result")
     public Result<?> result(HttpServletRequest request,@PathVariable long competitionId,@PathVariable long signId,@Valid @RequestBody ResultInput input) { competitionManager(user(request),competitionId); db.update("UPDATE competition_sign SET result_rank=?,result_score=? WHERE id=? AND competition_id=?",input.rank(),input.score(),signId,competitionId); return Result.ok(null); }
     @GetMapping("/community/posts")
@@ -297,7 +301,10 @@ public class ExperienceController {
     @PostMapping("/community/posts/{id}/replies")
     public Result<?> reply(HttpServletRequest request,@PathVariable long id,@Valid @RequestBody ReplyInput input) {
         if(db.queryForObject("SELECT COUNT(*) FROM community_post WHERE id=?",Integer.class,id)==0) throw new BusinessException("帖子不存在");
-        return Result.ok(insert("INSERT INTO community_comment(post_id,user_id,content) VALUES(?,?,?)",id,user(request).id(),input.content()));
+        CurrentUser u=user(request); Map<String,Object> post=db.queryForMap("SELECT user_id,content FROM community_post WHERE id=?",id); long replyId=insert("INSERT INTO community_comment(post_id,user_id,content) VALUES(?,?,?)",id,u.id(),input.content());
+        String preview=String.valueOf(post.get("content")); if(preview.length()>28) preview=preview.substring(0,28)+"…";
+        notifications.create(((Number)post.get("user_id")).longValue(),u.id(),"COMMUNITY_REPLY","你的动态有新回复",u.username()+" 回复了你的动态："+preview,"/community");
+        return Result.ok(replyId);
     }
     @DeleteMapping("/community/replies/{id}")
     public Result<?> deleteReply(HttpServletRequest request,@PathVariable long id) {

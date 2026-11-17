@@ -10,6 +10,7 @@ const routes = [
   { path: "/favorites", name: "favorites", component: RouteShell, meta: { auth: true } },
   { path: "/venues", name: "venues", component: RouteShell },
   { path: "/notices", name: "notices", component: RouteShell },
+  { path: "/notifications", name: "notifications", component: RouteShell, meta: { auth: true } },
   { path: "/competitions", name: "competitions", component: RouteShell },
   { path: "/community", name: "community", component: RouteShell },
   { path: "/points", name: "points", component: RouteShell, meta: { auth: true } },
@@ -47,7 +48,7 @@ const routes = [
 const router = createRouter({ history: createWebHistory(), routes });
 router.beforeEach((to) => {
   const auth = useAuthStore();
-  if (auth.user?.role === 'ADMIN' && !to.meta.admin && !['competitions', 'profile'].includes(to.name))
+  if (auth.user?.role === 'ADMIN' && !to.meta.admin && !['competitions', 'profile', 'notifications'].includes(to.name))
     return { name: 'admin-activities' };
   if (to.meta.auth && !auth.token)
     return { name: "activities", query: { login: "1" } };

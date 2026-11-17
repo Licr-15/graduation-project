@@ -16,8 +16,10 @@ import {
   Activity,
   ArrowLeft,
   BarChart3,
+  Bell,
   CalendarDays,
   Check,
+  CheckCheck,
   ChevronRight,
   Clock3,
   Compass,
@@ -92,6 +94,9 @@ const venueForm = reactive({
   description: "",
 });
 const noticeForm = reactive({ title: "", content: "" });
+const notifications = ref([]);
+const unreadNotifications = ref(0);
+let notificationTimer;
 const commentText = ref("");
 const activityClock = ref(Date.now());
 let activityClockTimer;
@@ -110,6 +115,7 @@ const title = computed(
       favorites: "我的收藏",
       venues: "运动场地",
       notices: "校园公告",
+      notifications: "消息通知",
       competitions: "校园赛事",
       community: "运动社区",
       points: "我的积分",
@@ -144,6 +150,27 @@ function requireLogin() {
 }
 function clearError() {
   error.value = "";
+}
+async function loadNotificationCount() {
+  if (!auth.token) { unreadNotifications.value = 0; return; }
+  try { unreadNotifications.value = Number((await api.get("/notifications/unread-count"))?.unreadCount || 0); } catch { /* 页面主流程不受轮询影响 */ }
+}
+async function loadNotifications() {
+  if (!auth.token) return;
+  loading.value = true; clearError();
+  try { notifications.value = (await api.get("/notifications/mine")) || []; await loadNotificationCount(); }
+  catch (err) { fail(err); } finally { loading.value = false; }
+}
+async function markNotificationRead(item) {
+  if (item.readAt) return;
+  try { await api.put(`/notifications/${item.id}/read`, {}); item.readAt = new Date().toISOString(); unreadNotifications.value = Math.max(0, unreadNotifications.value - 1); } catch (err) { fail(err); }
+}
+async function markAllNotificationsRead() {
+  try { await api.put("/notifications/read-all", {}); notifications.value.forEach(item => { item.readAt = item.readAt || new Date().toISOString(); }); unreadNotifications.value = 0; message("已全部标记为已读"); } catch (err) { fail(err); }
+}
+async function openNotification(item) {
+  await markNotificationRead(item);
+  if (item.link) router.push(item.link);
 }
 function onAvatarFile(event) {
   const file = event.target.files?.[0];
@@ -319,6 +346,7 @@ async function loadPage() {
     await loadVenues();
   else if (page.value === "notices" || page.value === "admin-notices")
     await loadNotices();
+  else if (page.value === "notifications") await loadNotifications();
   else if (page.value === "profile")
     Object.assign(profileForm, {
       nickname: auth.user?.nickname || "",
@@ -490,6 +518,7 @@ async function submitAuth() {
         data,
       ),
     );
+    await loadNotificationCount();
     authOpen.value = false;
     authForm.password = "";
     message(authMode.value === "login" ? "登录成功" : "注册成功");
@@ -504,6 +533,9 @@ async function submitAuth() {
 function logout() {
   accountMenuOpen.value = false;
   auth.logout();
+  notifications.value = [];
+  unreadNotifications.value = 0;
+  window.clearInterval(notificationTimer);
   created.value = [];
   joined.value = [];
   router.push("/activities");
@@ -610,11 +642,14 @@ watch(
 );
 onMounted(() => {
   auth.refresh();
+  loadNotificationCount();
+  notificationTimer = window.setInterval(loadNotificationCount, 30000);
   activityClockTimer = window.setInterval(() => { activityClock.value = Date.now(); }, 30000);
   window.addEventListener("lvyin-unauthorized", unauthorized);
 });
 onUnmounted(() => {
   window.clearInterval(activityClockTimer);
+  window.clearInterval(notificationTimer);
   window.removeEventListener("lvyin-unauthorized", unauthorized);
   clearTimeout(toastTimer);
 });
@@ -676,6 +711,7 @@ onUnmounted(() => {
       <RouterLink v-if="!isAdmin" to="/community" class="side-link" :class="{ current: page === 'community' }"><MessageCircle :size="18" />运动社区</RouterLink>
       <RouterLink v-if="!isAdmin" to="/points" class="side-link" :class="{ current: page === 'points' }"><Check :size="18" />我的积分</RouterLink>
       <RouterLink v-if="!isAdmin" to="/checkins" class="side-link" :class="{ current: page === 'checkins' }"><CalendarDays :size="18" />每日打卡</RouterLink>
+      <RouterLink v-if="auth.token" to="/notifications" class="side-link" :class="{ current: page === 'notifications' }"><Bell :size="18" />消息通知 <span v-if="unreadNotifications" class="side-unread">{{ unreadNotifications > 99 ? '99+' : unreadNotifications }}</span></RouterLink>
       <div v-if="isAdmin" class="side-label section-gap">管理员</div>
       <RouterLink v-if="isAdmin" to="/admin/dashboard" class="side-link" :class="{ current: page === 'admin-dashboard' }"><BarChart3 :size="18" />数据看板</RouterLink>
       <RouterLink v-if="isAdmin" to="/competitions" class="side-link" :class="{ current: page === 'competitions' }"><Trophy :size="18" />赛事管理</RouterLink>
@@ -722,6 +758,7 @@ onUnmounted(() => {
         </div>
         <div class="top-actions">
           <span class="top-date">校园运动结伴服务平台</span
+          ><button v-if="auth.token" class="notification-button" title="消息通知" @click="router.push('/notifications')"><Bell :size="19" /><span v-if="unreadNotifications" class="notification-badge">{{ unreadNotifications > 99 ? '99+' : unreadNotifications }}</span></button
           ><div v-if="auth.token" class="account-menu">
             <button
               class="user-button"
@@ -1276,6 +1313,23 @@ onUnmounted(() => {
             </article>
           </div></template
         >
+        <template v-else-if="page === 'notifications'">
+          <div class="page-head notification-page-head">
+            <div><p class="eyebrow">PERSONAL INBOX</p><h1>消息通知</h1><p>报名、评论、赛事审核和校园公告都会在这里提醒你。</p></div>
+            <button class="outline-button" :disabled="!unreadNotifications" @click="markAllNotificationsRead"><CheckCheck :size="17" />全部标记已读</button>
+          </div>
+          <div class="notification-summary"><Bell :size="18" /><strong>{{ unreadNotifications ? `有 ${unreadNotifications} 条未读消息` : '消息已全部读完' }}</strong><span>共 {{ notifications.length }} 条消息</span></div>
+          <div v-if="loading" class="state-panel">正在加载消息…</div>
+          <div v-else-if="error" class="state-panel"><p>{{ error }}</p><button class="text-button" @click="loadNotifications">重试</button></div>
+          <div v-else-if="!notifications.length" class="state-panel"><Bell :size="30" /><h3>暂时没有消息</h3><p>当有人报名、评论或发布公告时，你会在这里收到提醒。</p></div>
+          <div v-else class="notification-list">
+            <button v-for="item in notifications" :key="item.id" class="notification-item" :class="{ unread: !item.readAt }" @click="openNotification(item)">
+              <span class="notification-avatar"><img v-if="item.actorAvatar" :src="item.actorAvatar" alt="" /><span v-else><Bell :size="17" /></span></span>
+              <span class="notification-body"><span class="notification-item-top"><strong>{{ item.title }}</strong><time>{{ dateTime(item.createdAt) }}</time></span><span class="notification-content">{{ item.content }}</span><span v-if="item.actorNickname" class="notification-actor">来自 {{ item.actorNickname }}</span></span>
+              <span v-if="!item.readAt" class="notification-dot" title="未读"></span>
+            </button>
+          </div>
+        </template>
         <template v-else-if="page === 'profile'"
           ><div class="page-head">
             <div>
