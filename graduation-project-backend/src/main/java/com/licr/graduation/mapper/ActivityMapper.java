@@ -11,7 +11,7 @@ import org.apache.ibatis.annotations.Select;
 @Mapper
 public interface ActivityMapper extends BaseMapper<ActivityRow> {
     @Select("""
-        SELECT a.id, a.publisher_id AS publisherId, u.nickname AS publisherName,
+        SELECT a.id, a.publisher_id AS publisherId, u.nickname AS publisherName, u.avatar AS publisherAvatar,
                a.venue_id AS venueId, v.name AS venueName, a.title, a.sport_type AS sportType,
                a.description, a.image_url AS imageUrl, a.start_time AS startTime, a.end_time AS endTime,
                a.max_people AS maxPeople,
@@ -26,7 +26,7 @@ public interface ActivityMapper extends BaseMapper<ActivityRow> {
 
     @Select("""
         <script>
-        SELECT a.id, a.publisher_id AS publisherId, u.nickname AS publisherName,
+        SELECT a.id, a.publisher_id AS publisherId, u.nickname AS publisherName, u.avatar AS publisherAvatar,
                a.venue_id AS venueId, v.name AS venueName, a.title,
                a.sport_type AS sportType, a.description, a.image_url AS imageUrl, a.start_time AS startTime,
                a.end_time AS endTime, a.max_people AS maxPeople,
@@ -45,7 +45,7 @@ public interface ActivityMapper extends BaseMapper<ActivityRow> {
     List<Views.Activity> search(@Param("keyword") String keyword, @Param("sportType") String sportType, @Param("size") int size, @Param("offset") int offset);
 
     @Select("""
-        SELECT a.id, a.publisher_id AS publisherId, u.nickname AS publisherName,
+        SELECT a.id, a.publisher_id AS publisherId, u.nickname AS publisherName, u.avatar AS publisherAvatar,
                a.venue_id AS venueId, v.name AS venueName, a.title,
                a.sport_type AS sportType, a.description, a.image_url AS imageUrl, a.start_time AS startTime,
                a.end_time AS endTime, a.max_people AS maxPeople,
@@ -58,7 +58,7 @@ public interface ActivityMapper extends BaseMapper<ActivityRow> {
     List<Views.Activity> mine(@Param("userId") Long userId);
 
     @Select("""
-        SELECT a.id, a.publisher_id AS publisherId, u.nickname AS publisherName,
+        SELECT a.id, a.publisher_id AS publisherId, u.nickname AS publisherName, u.avatar AS publisherAvatar,
                a.venue_id AS venueId, v.name AS venueName, a.title,
                a.sport_type AS sportType, a.description, a.image_url AS imageUrl, a.start_time AS startTime,
                a.end_time AS endTime, a.max_people AS maxPeople,
@@ -70,7 +70,7 @@ public interface ActivityMapper extends BaseMapper<ActivityRow> {
     Views.Activity detail(@Param("id") Long id);
 
     @Select("""
-        SELECT a.id, a.publisher_id AS publisherId, u.nickname AS publisherName,
+        SELECT a.id, a.publisher_id AS publisherId, u.nickname AS publisherName, u.avatar AS publisherAvatar,
                a.venue_id AS venueId, v.name AS venueName, a.title,
                a.sport_type AS sportType, a.description, a.image_url AS imageUrl, a.start_time AS startTime,
                a.end_time AS endTime, a.max_people AS maxPeople,

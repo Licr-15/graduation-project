@@ -845,10 +845,8 @@ onUnmounted(() => {
                     item.venueName || "地点由发起人告知"
                   }}
                 </p>
-                <div class="card-footer">
-                  <span class="host-initial">{{
-                    item.publisherName?.slice(0, 1)
-                  }}</span
+                  <div class="card-footer">
+                  <span class="host-initial"> <img v-if="item.publisherAvatar" :src="item.publisherAvatar" alt="" /><span v-else>{{ item.publisherName?.slice(0, 1) }}</span></span
                   ><span class="host-name">{{ item.publisherName }}</span
                   ><span class="spacer"></span
                   ><button v-if="auth.token" class="card-favorite" type="button" title="收藏活动" @click.stop="toggleActivityFavorite(item)"><Star :size="15" /></button><span>{{ item.joinedCount }} / {{ item.maxPeople }} 人</span
@@ -906,7 +904,7 @@ onUnmounted(() => {
                     }}</span>
                   </div>
                   <h1>{{ detail.title }}</h1>
-                  <p>由 {{ detail.publisherName }} 发布</p>
+                  <p class="activity-publisher"><span class="publisher-avatar"><img v-if="detail.publisherAvatar" :src="detail.publisherAvatar" alt="" /><span v-else>{{ detail.publisherName?.slice(0, 1) }}</span></span>由 {{ detail.publisherName }} 发布</p>
                 </div>
                 <div
                   v-if="
@@ -943,7 +941,7 @@ onUnmounted(() => {
                     class="comment"
                   >
                     <div class="comment-avatar">
-                      {{ comment.nickname?.slice(0, 1) }}
+                      <img v-if="comment.avatar" :src="comment.avatar" alt="" /><span v-else>{{ comment.nickname?.slice(0, 1) }}</span>
                     </div>
                     <div>
                       <div class="comment-top">
@@ -994,7 +992,7 @@ onUnmounted(() => {
               </div>
               <div class="info-line">
                 <span><UserRound :size="16" />发起人</span
-                ><strong>{{ detail.publisherName }}</strong>
+                ><strong class="detail-publisher"><span class="publisher-avatar"><img v-if="detail.publisherAvatar" :src="detail.publisherAvatar" alt="" /><span v-else>{{ detail.publisherName?.slice(0, 1) }}</span></span>{{ detail.publisherName }}</strong>
               </div>
               <div class="info-line">
                 <span><Users :size="16" />报名人数</span
@@ -1061,7 +1059,7 @@ onUnmounted(() => {
           <div v-if="loading" class="state-panel">正在加载收藏…</div>
           <div v-else-if="error" class="state-panel">{{ error }}</div>
           <div v-else-if="!favorites.length" class="state-panel"><Star :size="30" /><h3>还没有收藏活动</h3><p>在活动卡片右下角点击星标即可收藏。</p><RouterLink class="primary-button" to="/activities">去发现活动</RouterLink></div>
-          <div v-else class="activity-grid"><article v-for="item in favorites" :key="item.id" class="activity-card" @click="router.push(`/activities/${item.id}`)"><div class="card-image" :style="{ backgroundImage: `url(${sportImage(item.sportType, item.imageUrl)})` }"><span class="status-label">{{ activityStatus(item) }}</span><span class="sport-label">{{ item.sportType }}</span></div><div class="card-content"><h3>{{ item.title }}</h3><p><Clock3 :size="15" />{{ dateTime(item.startTime) }}</p><p><MapPin :size="15" />{{ item.venueName || '地点由发起人告知' }}</p><div class="card-footer"><span class="host-initial">{{ item.publisherName?.slice(0, 1) }}</span><span class="host-name">{{ item.publisherName }}</span><span class="spacer"></span><button class="card-favorite saved" type="button" title="取消收藏" @click.stop="toggleActivityFavorite(item)"><Star :size="15" fill="currentColor" /></button></div></div></article></div>
+          <div v-else class="activity-grid"><article v-for="item in favorites" :key="item.id" class="activity-card" @click="router.push(`/activities/${item.id}`)"><div class="card-image" :style="{ backgroundImage: `url(${sportImage(item.sportType, item.imageUrl)})` }"><span class="status-label">{{ activityStatus(item) }}</span><span class="sport-label">{{ item.sportType }}</span></div><div class="card-content"><h3>{{ item.title }}</h3><p><Clock3 :size="15" />{{ dateTime(item.startTime) }}</p><p><MapPin :size="15" />{{ item.venueName || '地点由发起人告知' }}</p><div class="card-footer"><span class="host-initial"><img v-if="item.publisherAvatar" :src="item.publisherAvatar" alt="" /><span v-else>{{ item.publisherName?.slice(0, 1) }}</span></span><span class="host-name">{{ item.publisherName }}</span><span class="spacer"></span><button class="card-favorite saved" type="button" title="取消收藏" @click.stop="toggleActivityFavorite(item)"><Star :size="15" fill="currentColor" /></button></div></div></article></div>
         </template>
         <template v-else-if="page === 'mine'"
           ><div class="page-head">
