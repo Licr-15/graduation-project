@@ -147,7 +147,8 @@ public class ExperienceController {
         return Result.ok(db.queryForList("""
             SELECT c.id,c.title,c.sport_type AS sportType,c.description,c.start_time AS startTime,
               c.end_time AS endTime,c.points_reward AS pointsReward,c.status,c.manager_id AS managerId,
-              u.nickname AS managerName,(SELECT COUNT(*) FROM competition_sign s WHERE s.competition_id=c.id AND s.status IN ('ENROLLED','CHECKED') AND s.approval_status<>'REJECTED') AS enrolledCount
+              u.nickname AS managerName,(SELECT COUNT(*) FROM competition_sign s WHERE s.competition_id=c.id AND s.status IN ('ENROLLED','CHECKED') AND s.approval_status<>'REJECTED') AS enrolledCount,
+              (SELECT COUNT(*) FROM competition_sign p WHERE p.competition_id=c.id AND p.status='ENROLLED' AND p.approval_status='PENDING') AS pendingCount
             FROM sport_competition c JOIN `user` u ON u.id=c.manager_id ORDER BY c.start_time DESC
             """));
     }

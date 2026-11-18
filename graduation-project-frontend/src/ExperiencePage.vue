@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { api } from './api.js'
-import { Activity, ArrowUpRight, CalendarDays, Camera, Check, Clock3, Heart, MapPin, MessageCircle, Plus, Send, ShieldCheck, Star, Trash2, Trophy, Flag, BarChart3, Users } from 'lucide-vue-next'
+import { Activity, AlertCircle, ArrowUpRight, CalendarDays, Camera, Check, Clock3, Heart, MapPin, MessageCircle, Plus, Send, ShieldCheck, Star, Trash2, Trophy, Flag, BarChart3, Users } from 'lucide-vue-next'
 
 const props = defineProps({ page: String, user: Object, token: String })
 const emit = defineEmits(['login'])
@@ -52,6 +52,7 @@ const visibleCompetitions = computed(() => rows.value.filter(row => {
   return difference || (competitionState(a) === 'upcoming' ? new Date(a.startTime) - new Date(b.startTime) : new Date(b.startTime) - new Date(a.startTime))
 }))
 const visiblePosts = computed(() => rows.value.filter(row => communityFilter.value === 'all' || (communityFilter.value === 'mine' ? Number(row.userId) === Number(props.user?.id) : row.postType === communityFilter.value)))
+const pendingCompetitionCount = computed(() => rows.value.reduce((total, row) => total + Number(row.pendingCount || 0), 0))
 function requireLogin() { if (props.token) return true; emit('login'); return false }
 function date(value) { return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '' }
 function local(value) { return value ? String(value).replace(' ', 'T').slice(0, 16) : '' }
@@ -85,7 +86,7 @@ async function run(action, success = '操作成功') {
 }
 function resetCompetition() { editId.value = null; competitionFormOpen.value = false; Object.assign(competition, { title: '', sportType: '羽毛球', description: '', startTime: '', endTime: '', pointsReward: 10 }) }
 function editCompetition(row) { editId.value = row.id; competitionFormOpen.value = true; Object.assign(competition, { title: row.title, sportType: row.sportType, description: row.description || '', startTime: local(row.startTime), endTime: local(row.endTime), pointsReward: row.pointsReward }); window.scrollTo({ top: 0, behavior: 'smooth' }) }
-async function loadParticipants(row) { try { participants.value[row.id] = await api.get(`/competitions/${row.id}/participants`) } catch (e) { error.value = e.message } }
+async function loadParticipants(row) { try { const list = await api.get(`/competitions/${row.id}/participants`); participants.value[row.id] = (list || []).sort((a, b) => (a.approvalStatus === 'PENDING' ? -1 : 1) - (b.approvalStatus === 'PENDING' ? -1 : 1)) } catch (e) { error.value = e.message } }
 function approve(row, participant, status) { run(async () => { await api.put(`/competitions/${row.id}/participants/${participant.id}/approval?status=${status}`, {}) ; await loadParticipants(row) }, '审核状态已更新') }
 function saveResult(row, participant, event) { const form = event.target; run(async () => { await api.put(`/competitions/${row.id}/participants/${participant.id}/result`, { rank: Number(form.rank.value), score: Number(form.score.value) }); await loadParticipants(row) }, '成绩已保存') }
 function saveCompetition() {
@@ -155,6 +156,7 @@ onUnmounted(() => { window.clearInterval(clock); window.removeEventListener('foc
   <p v-if="error" class="xp-alert">{{ error }}</p><p v-if="notice" class="xp-success">{{ notice }}</p>
 
   <template v-if="page === 'competitions'">
+    <div v-if="canManage && pendingCompetitionCount" class="xp-approval-alert"><span class="xp-approval-alert-icon"><AlertCircle :size="20" /></span><div><strong>有 {{ pendingCompetitionCount }} 名用户等待审批</strong><small>请进入对应赛事的报名管理，及时处理报名申请。</small></div><span class="xp-approval-alert-pulse"></span></div>
     <div class="xp-competition-toolbar">
       <div class="xp-competition-tabs" role="group" aria-label="赛事状态">
         <button v-for="option in [{ value: 'active', label: '可参与' }, { value: 'all', label: '全部' }, { value: 'upcoming', label: '未开始' }, { value: 'live', label: '进行中' }, { value: 'ended', label: '已结束' }]" :key="option.value" type="button" :class="{ selected: competitionFilter === option.value }" @click="competitionFilter = option.value">{{ option.label }}</button>
@@ -175,8 +177,8 @@ onUnmounted(() => { window.clearInterval(clock); window.removeEventListener('foc
           <h2>{{ row.title }}</h2><p v-if="row.description">{{ row.description }}</p>
           <div class="xp-competition-date"><CalendarDays :size="16" />{{ date(row.startTime) }} 至 {{ date(row.endTime) }}</div>
           <div class="xp-competition-detail">{{ row.managerName }} · 已报名 {{ row.enrolledCount }} 人</div>
-          <div v-if="canManage && (user?.role === 'ADMIN' || row.managerId === user?.id)" class="xp-competition-manage"><button class="text-button" @click="loadParticipants(row)"><Users :size="16" />报名管理</button></div>
-          <div v-if="participants[row.id]" class="xp-participants"><div v-for="participant in participants[row.id]" :key="participant.id" class="xp-participant"><span><strong>{{ participant.nickname }}</strong> <small>{{ participant.approvalStatus }}</small></span><span class="xp-actions"><button class="text-button" @click="approve(row, participant, 'APPROVED')">通过</button><button class="text-button" @click="approve(row, participant, 'REJECTED')">拒绝</button><form @submit.prevent="saveResult(row, participant, $event)"><input name="rank" type="number" min="1" placeholder="名次" /><input name="score" type="number" min="0" step="0.01" placeholder="成绩" /><button class="text-button">保存成绩</button></form></span></div></div>
+          <div v-if="canManage && (user?.role === 'ADMIN' || row.managerId === user?.id)" class="xp-competition-manage"><button class="text-button xp-manage-button" :class="{ 'has-pending': row.pendingCount > 0 }" @click="loadParticipants(row)"><Users :size="16" />报名管理<span v-if="row.pendingCount > 0" class="xp-pending-badge">{{ row.pendingCount }} 待审批</span></button></div>
+          <div v-if="participants[row.id]" class="xp-participants"><div v-if="participants[row.id].some(item => item.approvalStatus === 'PENDING')" class="xp-pending-section"><AlertCircle :size="16" />请优先处理以下待审批申请</div><div v-for="participant in participants[row.id]" :key="participant.id" class="xp-participant" :class="{ 'xp-participant-pending': participant.approvalStatus === 'PENDING' }"><span><strong>{{ participant.nickname }}</strong> <small :class="{ 'xp-pending-text': participant.approvalStatus === 'PENDING' }">{{ participant.approvalStatus === 'PENDING' ? '等待审批' : participant.approvalStatus }}</small></span><span class="xp-actions"><button class="text-button" @click="approve(row, participant, 'APPROVED')">通过</button><button class="text-button" @click="approve(row, participant, 'REJECTED')">拒绝</button><form @submit.prevent="saveResult(row, participant, $event)"><input name="rank" type="number" min="1" placeholder="名次" /><input name="score" type="number" min="0" step="0.01" placeholder="成绩" /><button class="text-button">保存成绩</button></form></span></div></div>
         </div>
         <div class="xp-competition-controls">
           <button v-if="isStudent && competitionState(row) === 'upcoming' && token && !enrolled.get(row.id)" class="primary-button" :disabled="busy" @click="run(() => api.post(`/competitions/${row.id}/enroll`, {}), '报名成功')">报名</button>
