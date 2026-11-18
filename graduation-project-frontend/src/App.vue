@@ -49,6 +49,7 @@ const page = computed(() => route.name);
 const isAdmin = computed(() => auth.user?.role === "ADMIN");
 const isStudent = computed(() => auth.user?.role === "STUDENT");
 const favorites = ref([]);
+const favoriteIds = ref(new Set());
 const activities = ref([]);
 const created = ref([]);
 const joined = ref([]);
@@ -249,13 +250,21 @@ async function loadActivities() {
       page: filter.page,
       size: filter.size,
     });
-    activities.value = rows || [];
+    activities.value = (rows || []).map((item) => ({ ...item, favorited: favoriteIds.value.has(Number(item.id)) }));
     hasMore.value = activities.value.length === filter.size;
   } catch (err) {
     fail(err);
   } finally {
     loading.value = false;
   }
+}
+async function loadFavoriteState() {
+  if (!auth.token) { favoriteIds.value = new Set(); return; }
+  try {
+    const rows = (await api.get("/activities/favorites")) || [];
+    favorites.value = rows;
+    favoriteIds.value = new Set(rows.map((item) => Number(item.id)));
+  } catch (err) { fail(err); }
 }
 async function loadMine() {
   if (!auth.token) return;
@@ -275,12 +284,32 @@ async function loadMine() {
 async function loadFavorites() {
   if (!auth.token) return;
   loading.value = true; clearError();
-  try { favorites.value = (await api.get("/activities/favorites")) || []; }
+  try {
+    favorites.value = (await api.get("/activities/favorites")) || [];
+    favoriteIds.value = new Set(favorites.value.map((item) => Number(item.id)));
+    activities.value.forEach((item) => { item.favorited = favoriteIds.value.has(Number(item.id)); });
+    if (detail.value) detail.value.favorited = favoriteIds.value.has(Number(detail.value.id));
+  }
   catch (err) { fail(err); } finally { loading.value = false; }
 }
 async function toggleActivityFavorite(item) {
   if (!requireLogin()) return;
-  try { const result = await api.post(`/activities/${item.id}/favorite`, {}); if (result.favorited) { favorites.value = [item, ...favorites.value.filter(x => x.id !== item.id)]; message("已收藏活动"); } else { favorites.value = favorites.value.filter(x => x.id !== item.id); message("已取消收藏"); } }
+  try {
+    const result = await api.post(`/activities/${item.id}/favorite`, {});
+    const favorited = Boolean(result.favorited);
+    if (favorited) {
+      favoriteIds.value = new Set([...favoriteIds.value, Number(item.id)]);
+      favorites.value = [{ ...item, favorited: true }, ...favorites.value.filter(x => x.id !== item.id)];
+      message("已收藏活动");
+    } else {
+      const next = new Set(favoriteIds.value); next.delete(Number(item.id)); favoriteIds.value = next;
+      favorites.value = favorites.value.filter(x => x.id !== item.id);
+      message("已取消收藏");
+    }
+    const apply = (items) => items.forEach((row) => { if (Number(row.id) === Number(item.id)) row.favorited = favorited; });
+    [activities.value, created.value, joined.value, adminActivities.value].forEach(apply);
+    if (detail.value && Number(detail.value.id) === Number(item.id)) detail.value.favorited = favorited;
+  }
   catch (err) { fail(err); }
 }
 async function loadAdminActivities() {
@@ -299,6 +328,7 @@ async function loadDetail() {
   clearError();
   detail.value = null;
   try {
+    await loadFavoriteState();
     const id = route.params.id;
     const [item, discussion] = await Promise.all([
       api.get(`/activities/${id}`),
@@ -337,7 +367,7 @@ async function loadNotices() {
 }
 async function loadPage() {
   sidebarOpen.value = false;
-  if (page.value === "activities") await loadActivities();
+  if (page.value === "activities") { await loadFavoriteState(); await loadActivities(); }
   else if (page.value === "detail") await loadDetail();
   else if (page.value === "mine") await loadMine();
   else if (page.value === "favorites") await loadFavorites();
@@ -535,6 +565,8 @@ function logout() {
   auth.logout();
   notifications.value = [];
   unreadNotifications.value = 0;
+  favorites.value = [];
+  favoriteIds.value = new Set();
   window.clearInterval(notificationTimer);
   created.value = [];
   joined.value = [];
@@ -893,7 +925,7 @@ onUnmounted(() => {
                   <span class="host-initial"> <img v-if="item.publisherAvatar" :src="item.publisherAvatar" alt="" /><span v-else>{{ item.publisherName?.slice(0, 1) }}</span></span
                   ><span class="host-name">{{ item.publisherName }}</span
                   ><span class="spacer"></span
-                  ><button v-if="auth.token" class="card-favorite" type="button" title="收藏活动" @click.stop="toggleActivityFavorite(item)"><Star :size="15" /></button><span>{{ item.joinedCount }} / {{ item.maxPeople }} 人</span
+                  ><button v-if="auth.token" class="card-favorite" :class="{ saved: favoriteIds.has(Number(item.id)) }" type="button" :title="favoriteIds.has(Number(item.id)) ? '取消收藏' : '收藏活动'" @click.stop="toggleActivityFavorite(item)"><Star :size="15" :fill="favoriteIds.has(Number(item.id)) ? 'currentColor' : 'none'" /></button><span>{{ item.joinedCount }} / {{ item.maxPeople }} 人</span
                   ><ChevronRight :size="16" />
                 </div>
               </div>

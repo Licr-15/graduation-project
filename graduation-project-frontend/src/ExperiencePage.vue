@@ -116,7 +116,14 @@ function sendReply(row) {
 }
 function togglePost(row, type) {
   if (!requireLogin()) return
-  run(() => api.post(`/community/posts/${row.id}/${type}`, {}), type === 'like' ? '点赞状态已更新' : '收藏状态已更新')
+  run(async () => {
+    const countKey = type === 'like' ? 'likeCount' : 'favoriteCount'
+    const previous = Number(row[countKey] || 0)
+    row[countKey] = Math.max(0, previous + (row[`_${type}Active`] ? -1 : 1))
+    row[`_${type}Active`] = !row[`_${type}Active`]
+    try { await api.post(`/community/posts/${row.id}/${type}`, {}) }
+    catch (error) { row[countKey] = previous; row[`_${type}Active`] = !row[`_${type}Active`]; throw error }
+  }, type === 'like' ? '点赞状态已更新' : '收藏状态已更新')
 }
 function reportPost(row) {
   if (!requireLogin()) return
@@ -201,7 +208,7 @@ onUnmounted(() => { window.clearInterval(clock); window.removeEventListener('foc
     <div v-else class="xp-community-feed"><article v-for="row in visiblePosts" :key="row.id" class="xp-community-post">
       <div class="xp-community-head"><span class="xp-community-avatar"><img v-if="row.avatar" :src="row.avatar" alt="" /><span v-else>{{ row.nickname?.slice(0, 1) || '同' }}</span></span><div><strong>{{ row.nickname }}</strong><small>{{ date(row.createdAt) }}</small></div><span class="small-tag">{{ row.postType === 'TOPIC' ? '论坛话题' : '运动动态' }}</span></div>
       <p class="xp-community-content">{{ row.content }}</p><img v-if="row.imageUrl" class="xp-community-image" :src="row.imageUrl" alt="动态照片" />
-      <div class="xp-community-interactions"><button type="button" @click="togglePost(row, 'like')"><Heart :size="17" />赞 {{ row.likeCount || 0 }}</button><button type="button" @click="openReplies(row)"><MessageCircle :size="17" />回复 {{ row.replyCount || 0 }}</button><button type="button" @click="togglePost(row, 'favorite')"><Star :size="17" />收藏 {{ row.favoriteCount || 0 }}</button><span></span><button v-if="token && user?.id !== row.userId" type="button" title="举报动态" aria-label="举报动态" @click="reportPost(row)"><Flag :size="16" /></button><button v-if="user?.id === row.userId || user?.role === 'ADMIN'" type="button" title="删除动态" aria-label="删除动态" @click="run(() => api.delete(`/community/posts/${row.id}`), '动态已删除')"><Trash2 :size="16" /></button></div>
+      <div class="xp-community-interactions"><button type="button" :class="{ active: row._likeActive }" @click="togglePost(row, 'like')"><Heart :size="17" :fill="row._likeActive ? 'currentColor' : 'none'" />赞 {{ row.likeCount || 0 }}</button><button type="button" @click="openReplies(row)"><MessageCircle :size="17" />回复 {{ row.replyCount || 0 }}</button><button type="button" :class="{ active: row._favoriteActive }" @click="togglePost(row, 'favorite')"><Star :size="17" :fill="row._favoriteActive ? 'currentColor' : 'none'" />收藏 {{ row.favoriteCount || 0 }}</button><span></span><button v-if="token && user?.id !== row.userId" type="button" title="举报动态" aria-label="举报动态" @click="reportPost(row)"><Flag :size="16" /></button><button v-if="user?.id === row.userId || user?.role === 'ADMIN'" type="button" title="删除动态" aria-label="删除动态" @click="run(() => api.delete(`/community/posts/${row.id}`), '动态已删除')"><Trash2 :size="16" /></button></div>
       <div v-if="activePost === row.id" class="xp-community-replies"><div v-if="!(replies[row.id] || []).length" class="xp-community-no-replies">还没有回复</div><div v-for="reply in replies[row.id] || []" :key="reply.id" class="xp-community-reply"><span class="xp-community-avatar"><img v-if="reply.avatar" :src="reply.avatar" alt="" /><span v-else>{{ reply.nickname?.slice(0, 1) || '同' }}</span></span><div><strong>{{ reply.nickname }}</strong><p>{{ reply.content }}</p><small>{{ date(reply.createdAt) }}</small></div><button v-if="user?.id === reply.userId || user?.role === 'ADMIN'" type="button" class="icon-button danger-text" title="删除回复" @click="deleteReply(row, reply)"><Trash2 :size="14" /></button></div><form v-if="token" class="xp-community-reply-form" @submit.prevent="sendReply(row)"><input v-model="replyText" required maxlength="500" placeholder="写一条回复" /><button class="primary-button" :disabled="busy"><Send :size="16" />回复</button></form><button v-else class="text-button" @click="emit('login')">登录后回复</button></div>
     </article></div>
   </template>
