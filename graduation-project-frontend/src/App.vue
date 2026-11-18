@@ -68,6 +68,8 @@ const accountMenuOpen = ref(false);
 const authMode = ref("login");
 const activityOpen = ref(false);
 const venueOpen = ref(false);
+const venueInfoOpen = ref(false);
+const selectedVenue = ref(null);
 const noticeOpen = ref(false);
 const mineTab = ref("created");
 const filter = reactive({ keyword: "", sportType: "全部", page: 1, size: 9 });
@@ -610,6 +612,22 @@ function openVenue(item = null) {
         },
   );
   venueOpen.value = true;
+}
+function openVenueInfo(venue) {
+  selectedVenue.value = venue;
+  venueInfoOpen.value = true;
+}
+function publishAtVenue(venue) {
+  venueInfoOpen.value = false;
+  openActivity();
+  activityForm.venueId = venue.id;
+}
+function findVenueActivities(venue) {
+  venueInfoOpen.value = false;
+  filter.keyword = venue.name;
+  filter.sportType = "全部";
+  router.push("/activities");
+  loadActivities();
 }
 async function saveVenue() {
   saving.value = true;
@@ -1278,7 +1296,7 @@ onUnmounted(() => {
             <h3>暂无场地</h3>
           </div>
           <div v-else class="venue-grid">
-            <article v-for="venue in venues" :key="venue.id" class="venue-item">
+            <article v-for="venue in venues" :key="venue.id" class="venue-item" :class="{ 'venue-clickable': page === 'venues' }" @click="page === 'venues' && openVenueInfo(venue)">
               <div class="venue-symbol"><MapPin :size="22" /></div>
               <div class="venue-content">
                 <div class="venue-title">
@@ -1305,6 +1323,7 @@ onUnmounted(() => {
                   <Trash2 :size="17" />
                 </button>
               </div>
+              <div v-else class="venue-actions venue-view-action"><button class="text-button" type="button" @click.stop="openVenueInfo(venue)">查看详情 <ChevronRight :size="15" /></button></div>
             </article></div
         ></template>
         <template v-else-if="page === 'notices' || page === 'admin-notices'"
@@ -1578,6 +1597,21 @@ onUnmounted(() => {
             </button>
           </div>
         </form>
+      </div>
+    </div>
+    <div
+      v-if="venueInfoOpen && selectedVenue"
+      class="modal-backdrop"
+      @click.self="venueInfoOpen = false"
+    >
+      <div class="modal venue-info-modal">
+        <div class="modal-head">
+          <div><p class="eyebrow">CAMPUS VENUE</p><h2>{{ selectedVenue.name }}</h2><p>{{ selectedVenue.sportType }} · 校园运动场地</p></div>
+          <button class="icon-button" title="关闭" @click="venueInfoOpen = false"><X :size="20" /></button>
+        </div>
+        <div class="venue-info-highlight"><span class="venue-symbol"><MapPin :size="24" /></span><div><strong>{{ selectedVenue.address }}</strong><small>适合组织结伴活动和日常运动</small></div></div>
+        <p class="venue-info-description">{{ selectedVenue.description || "该场地适合开展校园运动，发布活动时可以直接选择此场地。" }}</p>
+        <div class="venue-info-actions"><button class="outline-button" @click="findVenueActivities(selectedVenue)"><Search :size="16" />查看相关活动</button><button class="primary-button" @click="publishAtVenue(selectedVenue)"><Plus :size="16" />在此发布活动</button></div>
       </div>
     </div>
     <div
