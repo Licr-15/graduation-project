@@ -309,8 +309,10 @@ onUnmounted(() => { window.clearInterval(clock); window.removeEventListener('foc
       <div class="xp-reward-hero-copy"><span class="xp-reward-kicker"><Sparkles :size="14" /> MOTION REWARDS</span><h2>让每一次坚持都有惊喜</h2><p>把运动目标变成轻松有趣的小任务，完成后自动收获积分与勋章。</p></div>
       <div class="xp-reward-hero-orbit"><Gift :size="26" /><span>积分 + 勋章</span></div>
     </section>
-    <form class="xp-form xp-policy-form" @submit.prevent="saveCheckinPolicy"><div class="xp-title"><CalendarDays :size="20" /><h2>有效打卡条件</h2></div><div class="xp-policy-fields"><label>最低运动时长（分钟）<input v-model.number="checkinPolicy.minDurationMinutes" type="number" min="1" max="1440" required /></label><button class="outline-button" :disabled="busy">保存条件</button></div></form>
-    <form class="xp-form" @submit.prevent="saveRule">
+    <div class="xp-reward-settings-scroll">
+      <div class="xp-reward-settings-heading"><div><span>奖励设置</span><small>统一管理打卡门槛与奖励任务</small></div><span class="xp-settings-scroll-hint">滚动查看全部设置</span></div>
+      <form class="xp-form xp-policy-form" @submit.prevent="saveCheckinPolicy"><div class="xp-title"><CalendarDays :size="20" /><h2>有效打卡条件</h2></div><div class="xp-policy-fields"><label>最低运动时长（分钟）<input v-model.number="checkinPolicy.minDurationMinutes" type="number" min="1" max="1440" required /></label><button class="outline-button" :disabled="busy">保存条件</button></div></form>
+      <form class="xp-form" @submit.prevent="saveRule">
       <div class="xp-title"><Trophy :size="20" /><div><h2>{{ rule.id ? '编辑奖励规则' : '新增奖励规则' }}</h2><small class="xp-form-hint">设置一个让大家愿意坚持的运动小目标</small></div></div>
       <div class="xp-fields">
         <label>规则名称<input v-model="rule.name" required maxlength="100" /></label>
@@ -321,7 +323,8 @@ onUnmounted(() => { window.clearInterval(clock); window.removeEventListener('foc
       <label>奖励勋章名称<input v-model="rule.badgeName" maxlength="100" placeholder="可选，例如坚持运动" /></label>
       <div class="xp-rule-preview"><span class="xp-rule-preview-icon"><Target :size="18" /></span><div><small>规则预览</small><strong>{{ rulePreview }}</strong></div><span class="xp-rule-preview-spark">✦</span></div>
       <div class="xp-actions"><button class="primary-button" :disabled="busy"><Plus :size="16" />保存规则</button><button v-if="rule.id" type="button" class="outline-button" @click="resetRule">取消编辑</button></div>
-    </form>
+      </form>
+    </div>
     <div v-if="!rules.length" class="state-panel">暂无奖励规则</div>
     <div v-else class="xp-list xp-rule-list">
       <div v-for="item in rules" :key="item.id" class="xp-item xp-record xp-rule-item">
