@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { api } from './api.js'
-import { Activity, AlertCircle, ArrowUpRight, CalendarDays, Camera, Check, Clock3, Heart, MapPin, MessageCircle, Plus, Send, ShieldCheck, Star, Trash2, Trophy, Flag, BarChart3, Users } from 'lucide-vue-next'
+import { Activity, AlertCircle, ArrowUpRight, CalendarDays, Camera, Check, Clock3, Flame, Gift, Heart, MapPin, MessageCircle, Plus, Send, ShieldCheck, Sparkles, Star, Target, Trash2, Trophy, Flag, BarChart3, Users } from 'lucide-vue-next'
 
 const props = defineProps({ page: String, user: Object, token: String })
 const emit = defineEmits(['login'])
@@ -34,6 +34,10 @@ const checkinForm = reactive({ sportType: '羽毛球', durationMinutes: 30, dist
 const rule = reactive({ id: null, name: '', ruleType: 'STREAK', targetValue: 3, rewardPoints: 10, badgeName: '' })
 const canManage = computed(() => props.user?.role === 'ADMIN')
 const isStudent = computed(() => props.user?.role === 'STUDENT')
+const rulePreview = computed(() => {
+  const target = rule.ruleType === 'DAILY' ? '每天完成一次运动' : rule.ruleType === 'STREAK' ? `连续打卡 ${rule.targetValue || 0} 天` : `累计打卡 ${rule.targetValue || 0} 次`
+  return `${target}，即可获得 ${rule.rewardPoints || 0} 积分${rule.badgeName ? `和「${rule.badgeName}」勋章` : ''}`
+})
 const hasDistance = computed(() => /跑步|慢跑|散步|步行|健走|骑行|自行车|徒步/.test(checkinForm.sportType))
 const enrolled = computed(() => new Map(points.value.enrollments.map(row => [Number(row.competitionId), row.status])))
 const enrollmentApproval = computed(() => new Map(points.value.enrollments.map(row => [Number(row.competitionId), row.approvalStatus])))
@@ -301,22 +305,28 @@ onUnmounted(() => { window.clearInterval(clock); window.removeEventListener('foc
   </template>
 
   <template v-else-if="page === 'admin-reward-rules'">
+    <section class="xp-reward-hero">
+      <div class="xp-reward-hero-copy"><span class="xp-reward-kicker"><Sparkles :size="14" /> MOTION REWARDS</span><h2>让每一次坚持都有惊喜</h2><p>把运动目标变成轻松有趣的小任务，完成后自动收获积分与勋章。</p></div>
+      <div class="xp-reward-hero-orbit"><Gift :size="26" /><span>积分 + 勋章</span></div>
+    </section>
     <form class="xp-form xp-policy-form" @submit.prevent="saveCheckinPolicy"><div class="xp-title"><CalendarDays :size="20" /><h2>有效打卡条件</h2></div><div class="xp-policy-fields"><label>最低运动时长（分钟）<input v-model.number="checkinPolicy.minDurationMinutes" type="number" min="1" max="1440" required /></label><button class="outline-button" :disabled="busy">保存条件</button></div></form>
     <form class="xp-form" @submit.prevent="saveRule">
-      <div class="xp-title"><Trophy :size="20" /><h2>{{ rule.id ? '编辑奖励规则' : '新增奖励规则' }}</h2></div>
+      <div class="xp-title"><Trophy :size="20" /><div><h2>{{ rule.id ? '编辑奖励规则' : '新增奖励规则' }}</h2><small class="xp-form-hint">设置一个让大家愿意坚持的运动小目标</small></div></div>
       <div class="xp-fields">
         <label>规则名称<input v-model="rule.name" required maxlength="100" /></label>
-        <label>规则类型<select v-model="rule.ruleType" @change="ruleTypeChanged"><option value="DAILY">每日打卡</option><option value="STREAK">连续打卡</option><option value="TOTAL">累计次数</option></select></label>
+        <label>规则类型<select v-model="rule.ruleType" @change="ruleTypeChanged"><option value="DAILY">☀️ 每日打卡</option><option value="STREAK">🔥 连续打卡</option><option value="TOTAL">🎯 累计次数</option></select></label>
         <label>达成目标（{{ rule.ruleType === 'STREAK' ? '天' : '次' }}）<input v-model.number="rule.targetValue" type="number" min="1" :max="rule.ruleType === 'DAILY' ? 1 : 3650" :disabled="rule.ruleType === 'DAILY'" required /></label>
         <label>奖励积分<input v-model.number="rule.rewardPoints" type="number" min="0" max="10000" required /></label>
       </div>
       <label>奖励勋章名称<input v-model="rule.badgeName" maxlength="100" placeholder="可选，例如坚持运动" /></label>
+      <div class="xp-rule-preview"><span class="xp-rule-preview-icon"><Target :size="18" /></span><div><small>规则预览</small><strong>{{ rulePreview }}</strong></div><span class="xp-rule-preview-spark">✦</span></div>
       <div class="xp-actions"><button class="primary-button" :disabled="busy"><Plus :size="16" />保存规则</button><button v-if="rule.id" type="button" class="outline-button" @click="resetRule">取消编辑</button></div>
     </form>
     <div v-if="!rules.length" class="state-panel">暂无奖励规则</div>
     <div v-else class="xp-list xp-rule-list">
       <div v-for="item in rules" :key="item.id" class="xp-item xp-record xp-rule-item">
-        <div><strong>{{ item.name }}</strong><small>{{ { DAILY: '每日打卡', STREAK: '连续打卡', TOTAL: '累计次数' }[item.ruleType] }} · 目标 {{ item.targetValue }} {{ item.ruleType === 'STREAK' ? '天' : '次' }} · +{{ item.rewardPoints }} 积分 {{ item.badgeName || '' }}</small></div>
+        <span class="xp-rule-type-icon" :class="`rule-${item.ruleType.toLowerCase()}`"><Flame v-if="item.ruleType === 'STREAK'" :size="18" /><Target v-else-if="item.ruleType === 'TOTAL'" :size="18" /><Gift v-else :size="18" /></span><div><strong>{{ item.name }}</strong><small>{{ { DAILY: '每日打卡', STREAK: '连续打卡', TOTAL: '累计次数' }[item.ruleType] }} · 目标 {{ item.targetValue }} {{ item.ruleType === 'STREAK' ? '天' : '次' }}</small><span v-if="item.badgeName" class="xp-rule-badge">✦ {{ item.badgeName }}</span></div>
+        <b class="xp-rule-points">+{{ item.rewardPoints }} <small>积分</small></b>
         <span class="small-tag" :class="{ 'muted-tag': !item.status }">{{ item.status ? '启用中' : '已停用' }}</span>
         <button class="text-button" :disabled="busy" @click="editRule(item)">编辑</button>
         <button v-if="item.status" class="icon-button danger-text" title="停用规则" :disabled="busy" @click="run(() => api.delete(`/admin/reward-rules/${item.id}`), '规则已停用')"><Trash2 :size="16" /></button>
