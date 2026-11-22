@@ -6,5 +6,6 @@ import './style.css'
 import './playful.css'
 import './experience.css'
 import './profile.css'
+import './toast.css'
 
 createApp(App).use(createPinia()).use(router).mount('#app')

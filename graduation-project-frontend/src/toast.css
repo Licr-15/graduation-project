@@ -1,0 +1,2 @@
+.toast{top:max(16px,env(safe-area-inset-top));right:auto;bottom:auto;left:50%;z-index:60;width:max-content;max-width:min(420px,calc(100vw - 32px));transform:translateX(-50%);text-align:center;line-height:1.45;box-shadow:0 8px 28px #142f2140}
+@media(max-width:530px){.toast{top:max(12px,env(safe-area-inset-top));max-width:calc(100vw - 28px);padding:11px 15px}}
