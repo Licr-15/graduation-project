@@ -1391,12 +1391,12 @@ onUnmounted(() => {
           </div>
           <div class="profile-layout">
             <div class="profile-summary">
+              <div class="profile-cover"><span>个人主页</span></div>
               <div class="profile-avatar">
                 <img v-if="auth.user?.avatar" :src="auth.user.avatar" alt="用户头像" />
                 <span v-else>{{ auth.user?.nickname?.slice(0, 1) || "同" }}</span>
               </div>
               <h2 class="profile-nickname">{{ auth.user?.nickname }}</h2>
-              <div class="profile-account"><span>账号 ID</span><strong>{{ auth.user?.id }}</strong></div>
               <div class="profile-username">@{{ auth.user?.username }}</div>
               <span class="small-tag profile-role">{{ { ADMIN: "系统管理员", EVENT_MANAGER: "赛事管理员", STUDENT: "普通用户" }[auth.user?.role] || "用户" }}</span>
             </div>

@@ -5,5 +5,6 @@ import router from './router.js'
 import './style.css'
 import './playful.css'
 import './experience.css'
+import './profile.css'
 
 createApp(App).use(createPinia()).use(router).mount('#app')
