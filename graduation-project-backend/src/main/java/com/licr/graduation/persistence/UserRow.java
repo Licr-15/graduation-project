@@ -12,6 +12,7 @@ public class UserRow {
     public String password;
     public String nickname;
     public String phone;
+    public String email;
     public String avatar;
     public String role;
     public Integer status;

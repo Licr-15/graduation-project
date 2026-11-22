@@ -76,8 +76,8 @@ const filter = reactive({ keyword: "", sportType: "全部", page: 1, size: 9 });
 const hasMore = ref(false);
 const picking = ref(false);
 const lastPickedId = ref(null);
-const authForm = reactive({ username: "", password: "", nickname: "" });
-const profileForm = reactive({ nickname: "", phone: "", avatar: "" });
+const authForm = reactive({ username: "", password: "", nickname: "", contact: "" });
+const profileForm = reactive({ nickname: "", phone: "", email: "", avatar: "" });
 const activityForm = reactive({
   id: null,
   title: "",
@@ -383,6 +383,7 @@ async function loadPage() {
     Object.assign(profileForm, {
       nickname: auth.user?.nickname || "",
       phone: auth.user?.phone || "",
+      email: auth.user?.email || "",
       avatar: auth.user?.avatar || "",
     });
 }
@@ -534,6 +535,11 @@ async function deleteComment(item) {
   }
 }
 async function submitAuth() {
+  const contact = authForm.contact.trim();
+  if (authMode.value === "register" && !(/^1[3-9]\d{9}$/.test(contact) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact))) {
+    fail(new Error("请输入有效的中国大陆手机号或邮箱地址"));
+    return;
+  }
   saving.value = true;
   try {
     const data =
@@ -543,6 +549,7 @@ async function submitAuth() {
             username: authForm.username.trim(),
             password: authForm.password,
             nickname: authForm.nickname.trim(),
+            contact,
           };
     auth.setSession(
       await api.post(
@@ -587,6 +594,7 @@ async function saveProfile() {
     auth.user = await api.put("/auth/profile", {
       nickname: profileForm.nickname.trim(),
       phone: profileForm.phone.trim() || null,
+      email: profileForm.email.trim() || null,
       avatar: profileForm.avatar || null,
     });
     sessionStorage.setItem("lvyin_user", JSON.stringify(auth.user));
@@ -1413,7 +1421,15 @@ onUnmounted(() => {
                 >联系电话<input
                   v-model="profileForm.phone"
                   maxlength="20"
-                  placeholder="可选" /></label
+                  type="tel"
+                  placeholder="手机号，可选" /></label
+              ><label
+                >邮箱<input
+                  v-model="profileForm.email"
+                  maxlength="254"
+                  type="email"
+                  placeholder="邮箱地址，可选" /></label
+              ><small class="field-hint contact-hint">注册新账号时手机号或邮箱至少填写一项；这里可随时更新。</small
               ><label>头像
                 <div class="avatar-picker">
                   <div class="avatar-preview">
@@ -1485,6 +1501,13 @@ onUnmounted(() => {
               v-model="authForm.nickname"
               required
               maxlength="50" /></label
+          ><label v-if="authMode === 'register'"
+            >手机号或邮箱<input
+              v-model="authForm.contact"
+              required
+              maxlength="254"
+              placeholder="填写手机号或邮箱之一"
+              autocomplete="email" /><small class="field-hint">用于联系与账号资料管理；当前不发送验证码，也不作为登录账号</small></label
           ><label
             >密码<input
               v-model="authForm.password"

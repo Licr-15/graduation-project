@@ -4,7 +4,7 @@ import java.time.LocalDateTime;
 
 public final class Views {
     private Views() {}
-    public record User(Long id, String username, String nickname, String phone, String avatar, String role) {}
+    public record User(Long id, String username, String nickname, String phone, String email, String avatar, String role) {}
     public record Login(String token, User user) {}
     public record Venue(Long id, String name, String address, String sportType, String description) {}
     public record Activity(Long id, Long publisherId, String publisherName, String publisherAvatar, Long venueId, String venueName, String title, String sportType, String description, String imageUrl, LocalDateTime startTime, LocalDateTime endTime, int maxPeople, int joinedCount, String status, LocalDateTime createdAt) {}

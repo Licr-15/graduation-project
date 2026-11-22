@@ -20,3 +20,10 @@
 |公告|GET|`/api/notices`|公开|
 |公告|POST|`/api/admin/notices`|管理员|
 |系统|GET|`/api/system/health`|公开|
+
+## 注册与联系方式
+
+- `POST /api/auth/register` 接收 `username`、`password`、`nickname` 和 `contact`。`contact` 必须是中国大陆手机号或邮箱，系统会写入对应字段并检查唯一性。
+- `POST /api/auth/login` 仍使用用户名和密码登录；手机号/邮箱只作为联系方式，不发送验证码，也不作为登录凭证。
+- `GET/PUT /api/auth/profile` 返回并维护 `phone`、`email`。资料中两项都可选，填写时校验格式和唯一性；注册新账号时二者择一必填。
+- 已有数据库执行 `src/main/resources/db/17_user_contact.sql`，新建数据库按编号顺序执行全部 SQL 脚本。
