@@ -1570,7 +1570,7 @@ onUnmounted(() => {
           </div>
           <label
             >运动场地<select v-model="activityForm.venueId">
-              <option value="">暂不指定场地</option>
+              <option value="">暂不指定 / 现场确定</option>
               <option v-for="venue in venues" :key="venue.id" :value="venue.id">
                 {{ venue.name }} · {{ venue.address }}
               </option>
