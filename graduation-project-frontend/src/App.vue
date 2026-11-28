@@ -83,6 +83,9 @@ const activityForm = reactive({
   title: "",
   sportType: "羽毛球",
   venueId: "",
+  locationLat: null,
+  locationLng: null,
+  locationAddress: "",
   description: "",
   imageUrl: "",
   startTime: "",
@@ -210,6 +213,9 @@ function activityStatus(item) {
   if (item.endTime && new Date(item.endTime).getTime() <= Date.now()) return "已结束";
   if (isPast(item.startTime)) return "进行中";
   return item.joinedCount >= item.maxPeople ? "已满员" : "正在招募";
+}
+function activityLocation(item) {
+  return item.venueName || item.locationAddress || "现场确定";
 }
 async function pickActivity() {
   if (picking.value) return;
@@ -405,6 +411,9 @@ function openActivity(item = null) {
           title: item.title,
           sportType: item.sportType,
           venueId: item.venueId ?? "",
+          locationLat: item.locationLat ?? null,
+          locationLng: item.locationLng ?? null,
+          locationAddress: item.locationAddress || "",
           description: item.description || "",
           imageUrl: item.imageUrl || "",
           startTime: localInput(item.startTime),
@@ -416,6 +425,9 @@ function openActivity(item = null) {
           title: "",
           sportType: "羽毛球",
           venueId: "",
+          locationLat: null,
+          locationLng: null,
+          locationAddress: "",
           description: "",
           imageUrl: "",
           startTime: "",
@@ -426,6 +438,17 @@ function openActivity(item = null) {
   imageChoice.value = item?.imageUrl ? "custom" : "default";
   activityOpen.value = true;
   loadVenuesForForm();
+}
+function useCurrentLocation() {
+  if (!navigator.geolocation) return message("当前浏览器不支持定位，请手动填写地点");
+  message("正在获取当前位置…");
+  navigator.geolocation.getCurrentPosition(({ coords }) => {
+    activityForm.locationLat = Number(coords.latitude.toFixed(7));
+    activityForm.locationLng = Number(coords.longitude.toFixed(7));
+    activityForm.locationAddress = `当前位置（${activityForm.locationLat}, ${activityForm.locationLng}）`;
+    activityForm.venueId = "";
+    message("当前位置已填入活动地点");
+  }, () => message("无法获取当前位置，请允许浏览器定位或手动填写地点"), { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
 }
 async function loadVenuesForForm() {
   try {
@@ -446,6 +469,9 @@ async function saveActivity() {
       title: activityForm.title.trim(),
       sportType: activityForm.sportType.trim(),
       venueId: activityForm.venueId ? Number(activityForm.venueId) : null,
+      locationLat: activityForm.locationLat,
+      locationLng: activityForm.locationLng,
+      locationAddress: activityForm.locationAddress.trim() || null,
       description: activityForm.description.trim() || null,
       imageUrl: activityForm.imageUrl || null,
       startTime: isoLocal(activityForm.startTime),
@@ -944,7 +970,7 @@ onUnmounted(() => {
                 </p>
                 <p>
                   <MapPin :size="15" />{{
-                    item.venueName || "地点由发起人告知"
+                    activityLocation(item)
                   }}
                 </p>
                   <div class="card-footer">
@@ -1090,7 +1116,7 @@ onUnmounted(() => {
               </div>
               <div class="info-line">
                 <span><MapPin :size="16" />集合地点</span
-                ><strong>{{ detail.venueName || "地点由发起人告知" }}</strong>
+                ><strong>{{ activityLocation(detail) }}</strong>
               </div>
               <div class="info-line">
                 <span><UserRound :size="16" />发起人</span
@@ -1161,7 +1187,7 @@ onUnmounted(() => {
           <div v-if="loading" class="state-panel">正在加载收藏…</div>
           <div v-else-if="error" class="state-panel">{{ error }}</div>
           <div v-else-if="!favorites.length" class="state-panel"><Star :size="30" /><h3>还没有收藏活动</h3><p>在活动卡片右下角点击星标即可收藏。</p><RouterLink class="primary-button" to="/activities">去发现活动</RouterLink></div>
-          <div v-else class="activity-grid"><article v-for="item in favorites" :key="item.id" class="activity-card" @click="router.push(`/activities/${item.id}`)"><div class="card-image" :style="{ backgroundImage: `url(${sportImage(item.sportType, item.imageUrl)})` }"><span class="status-label">{{ activityStatus(item) }}</span><span class="sport-label">{{ item.sportType }}</span></div><div class="card-content"><h3>{{ item.title }}</h3><p><Clock3 :size="15" />{{ dateTime(item.startTime) }}</p><p><MapPin :size="15" />{{ item.venueName || '地点由发起人告知' }}</p><div class="card-footer"><span class="host-initial"><img v-if="item.publisherAvatar" :src="item.publisherAvatar" alt="" /><span v-else>{{ item.publisherName?.slice(0, 1) }}</span></span><span class="host-name">{{ item.publisherName }}</span><span class="spacer"></span><button class="card-favorite saved" type="button" title="取消收藏" @click.stop="toggleActivityFavorite(item)"><Star :size="15" fill="currentColor" /></button></div></div></article></div>
+          <div v-else class="activity-grid"><article v-for="item in favorites" :key="item.id" class="activity-card" @click="router.push(`/activities/${item.id}`)"><div class="card-image" :style="{ backgroundImage: `url(${sportImage(item.sportType, item.imageUrl)})` }"><span class="status-label">{{ activityStatus(item) }}</span><span class="sport-label">{{ item.sportType }}</span></div><div class="card-content"><h3>{{ item.title }}</h3><p><Clock3 :size="15" />{{ dateTime(item.startTime) }}</p><p><MapPin :size="15" />{{ activityLocation(item) }}</p><div class="card-footer"><span class="host-initial"><img v-if="item.publisherAvatar" :src="item.publisherAvatar" alt="" /><span v-else>{{ item.publisherName?.slice(0, 1) }}</span></span><span class="host-name">{{ item.publisherName }}</span><span class="spacer"></span><button class="card-favorite saved" type="button" title="取消收藏" @click.stop="toggleActivityFavorite(item)"><Star :size="15" fill="currentColor" /></button></div></div></article></div>
         </template>
         <template v-else-if="page === 'mine'"
           ><div class="page-head">
@@ -1228,7 +1254,7 @@ onUnmounted(() => {
                 <h3>{{ item.title }}</h3>
                 <p>
                   {{ dateTime(item.startTime) }} ·
-                  {{ item.venueName || "地点由发起人告知" }} ·
+                  {{ activityLocation(item) }} ·
                   {{ item.joinedCount }}/{{ item.maxPeople }} 人
                 </p>
               </div>
@@ -1569,13 +1595,19 @@ onUnmounted(() => {
             /></label>
           </div>
           <label
-            >运动场地<select v-model="activityForm.venueId">
-              <option value="">暂不指定 / 现场确定</option>
+            >运动场地<select v-model="activityForm.venueId" @change="activityForm.locationLat = null; activityForm.locationLng = null; activityForm.locationAddress = ''">
+              <option value="">现场确定或使用当前位置</option>
               <option v-for="venue in venues" :key="venue.id" :value="venue.id">
                 {{ venue.name }} · {{ venue.address }}
               </option>
             </select></label
           >
+          <div class="location-picker">
+            <button type="button" class="outline-button" @click="useCurrentLocation"><MapPin :size="16" />使用当前位置</button>
+            <input v-model="activityForm.locationAddress" maxlength="255" placeholder="地点补充说明，例如：东区操场北门" />
+            <small v-if="activityForm.locationLat">已定位：{{ activityForm.locationLat }}, {{ activityForm.locationLng }}</small>
+            <small v-else>可以先不确定场地，发布后再通过活动说明告知集合地点。</small>
+          </div>
           <div class="form-grid">
             <label
               >开始时间<input

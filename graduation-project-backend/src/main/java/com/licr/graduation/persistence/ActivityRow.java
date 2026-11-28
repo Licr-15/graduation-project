@@ -10,6 +10,9 @@ public class ActivityRow {
     @TableId(type = IdType.AUTO) public Long id;
     public Long publisherId;
     public Long venueId;
+    public Double locationLat;
+    public Double locationLng;
+    public String locationAddress;
     public String title;
     public String sportType;
     public String description;
