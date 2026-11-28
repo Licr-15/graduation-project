@@ -208,7 +208,7 @@ const activityPreview = computed(() =>
 function activityStatus(item) {
   activityClock.value;
   if (item.endTime && new Date(item.endTime).getTime() <= Date.now()) return "已结束";
-  if (isPast(item.startTime)) return "已开始";
+  if (isPast(item.startTime)) return "进行中";
   return item.joinedCount >= item.maxPeople ? "已满员" : "正在招募";
 }
 async function pickActivity() {
@@ -931,7 +931,7 @@ onUnmounted(() => {
                   class="status-label"
                   :class="{
                     full: activityStatus(item) === '已满员',
-                    past: activityStatus(item) === '已开始' || activityStatus(item) === '已结束',
+                    past: activityStatus(item) === '已结束',
                   }"
                   >{{ activityStatus(item) }}</span
                 ><span class="sport-label">{{ item.sportType }}</span>
@@ -1150,7 +1150,7 @@ onUnmounted(() => {
                       ? "活动已取消"
                       : detail.endTime && new Date(detail.endTime).getTime() <= Date.now()
                         ? "活动已结束"
-                        : "活动已开始"
+                        : "活动进行中"
                 }}
               </p>
             </aside>
@@ -1220,7 +1220,7 @@ onUnmounted(() => {
                       ? item.endTime && new Date(item.endTime).getTime() <= Date.now()
                         ? "已结束"
                         : isPast(item.startTime)
-                          ? "已开始"
+                          ? "进行中"
                         : "招募中"
                       : "已取消"
                   }}</span>
@@ -1272,7 +1272,7 @@ onUnmounted(() => {
             <article v-for="item in adminActivities" :key="item.id" class="admin-activity-item">
               <img :src="sportImage(item.sportType, item.imageUrl)" :alt="item.sportType" />
               <div class="admin-activity-content"><div class="mine-top"><span class="small-tag">{{ item.sportType }}</span><span class="small-tag muted-tag">{{ item.status === 'OPEN' ? '开放中' : '已取消' }}</span></div><h3>{{ item.title }}</h3><p>发布者：{{ item.publisherName }} · {{ dateTime(item.startTime) }} · {{ item.joinedCount }}/{{ item.maxPeople }} 人</p></div>
-              <div class="mine-actions"><button class="text-button" @click="router.push(`/activities/${item.id}`)">查看</button><button class="icon-button" title="编辑活动" @click="openActivity(item)"><Pencil :size="17" /></button><button v-if="item.status === 'OPEN'" class="icon-button danger-text" title="取消活动" @click="cancelActivity(item)"><Trash2 :size="17" /></button></div>
+              <div class="mine-actions"><button class="text-button" type="button" title="查看活动详情" @click.stop="router.push(`/activities/${item.id}`)">查看</button><button class="icon-button" type="button" title="编辑活动" @click.stop="openActivity(item)"><Pencil :size="17" /></button><button v-if="item.status === 'OPEN'" class="icon-button danger-text" type="button" title="取消活动" @click.stop="cancelActivity(item)"><Trash2 :size="17" /></button></div>
             </article>
           </div>
         </template>

@@ -18,7 +18,14 @@ public interface ActivityMapper extends BaseMapper<ActivityRow> {
                (SELECT COUNT(*) FROM activity_sign s WHERE s.activity_id=a.id AND s.status='JOINED') AS joinedCount,
                a.status, a.created_at AS createdAt
         FROM activity a JOIN `user` u ON u.id=a.publisher_id LEFT JOIN sport_venue v ON v.id=a.venue_id
-        ORDER BY a.created_at DESC
+        ORDER BY CASE
+                   WHEN a.status='OPEN' AND a.start_time <= NOW() AND a.end_time > NOW() THEN 0
+                   WHEN a.status='OPEN' AND a.start_time > NOW() THEN 1
+                   WHEN a.status='OPEN' AND a.end_time <= NOW() THEN 2
+                   ELSE 3
+                 END,
+                 CASE WHEN a.status='OPEN' AND a.start_time > NOW() THEN a.start_time END ASC,
+                 a.start_time DESC, a.created_at DESC
         """)
     List<Views.Activity> all();
     @Select("SELECT id FROM activity WHERE id=#{id} FOR UPDATE")
@@ -39,7 +46,14 @@ public interface ActivityMapper extends BaseMapper<ActivityRow> {
           AND (a.title LIKE CONCAT('%',#{keyword},'%') OR a.description LIKE CONCAT('%',#{keyword},'%') OR v.name LIKE CONCAT('%',#{keyword},'%'))
         </if>
         <if test="sportType != null and sportType != ''">AND a.sport_type=#{sportType}</if>
-        ORDER BY a.start_time ASC LIMIT #{size} OFFSET #{offset}
+        ORDER BY CASE
+                   WHEN a.start_time &lt;= NOW() AND a.end_time > NOW() THEN 0
+                   WHEN a.start_time > NOW() THEN 1
+                   ELSE 2
+                 END,
+                 CASE WHEN a.start_time > NOW() THEN a.start_time END ASC,
+                 a.start_time DESC, a.created_at DESC
+        LIMIT #{size} OFFSET #{offset}
         </script>
         """)
     List<Views.Activity> search(@Param("keyword") String keyword, @Param("sportType") String sportType, @Param("size") int size, @Param("offset") int offset);
